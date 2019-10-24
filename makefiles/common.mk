@@ -5,6 +5,7 @@
 #
 
 CUDA_HOME ?= /usr/local/cuda
+DIS_HOME ?= /opt/DIS
 PREFIX ?= /usr/local
 VERBOSE ?= 0
 KEEP ?= 0
@@ -22,6 +23,8 @@ CUDA_MAJOR = $(shell echo $(CUDA_VERSION) | cut -d "." -f 1)
 CUDA_MINOR = $(shell echo $(CUDA_VERSION) | cut -d "." -f 2)
 #$(info CUDA_VERSION ${CUDA_MAJOR}.${CUDA_MINOR})
 
+DIS_LIB ?= $(DIS_HOME)/lib64
+DIS_INCLUDE ?= $(DIS_HOME)/include $(DIS_HOME)/include/dis
 
 # Better define NVCC_GENCODE in your environment to the minimal set
 # of archs to reduce compile time.
@@ -45,10 +48,10 @@ endif
 
 CXXFLAGS   := -DCUDA_MAJOR=$(CUDA_MAJOR) -DCUDA_MINOR=$(CUDA_MINOR) -fPIC -fvisibility=hidden
 CXXFLAGS   += -Wall -Wno-unused-function -Wno-sign-compare -std=c++11 -Wvla
-CXXFLAGS   += -I $(CUDA_INC)
+CXXFLAGS   += -I $(CUDA_INC) $(foreach include,$(DIS_INCLUDE),-I$(include))
 NVCUFLAGS  := -ccbin $(CXX) $(NVCC_GENCODE) -lineinfo -std=c++11 -Xptxas -maxrregcount=96 -Xfatbin -compress-all
 # Use addprefix so that we can specify more than one path
-NVLDFLAGS  := -L${CUDA_LIB} -lcudart -lrt
+NVLDFLAGS  := -L${CUDA_LIB} -lcudart -lrt -L$(DIS_LIB) -lsisci
 
 ########## GCOV ##########
 GCOV ?= 0 # disable by default.

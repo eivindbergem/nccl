@@ -32,6 +32,7 @@ static ncclResult_t ncclNetCloseRecv(void* recvComm) { NCCLCHECK(ncclNet->closeR
 static ncclResult_t ncclNetCloseListen(void* listenComm) { NCCLCHECK(ncclNet->closeListen(listenComm)); return ncclSuccess; }
 
 extern ncclNet_t ncclNetIb;
+extern ncclNet_t ncclNetSisci;
 extern ncclNet_t ncclNetSocket;
 
 #endif
