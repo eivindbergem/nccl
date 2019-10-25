@@ -11,6 +11,7 @@
 #include "topo.h"
 #include "utils.h"
 #include "param.h"
+#include "sisciwrap.h"
 
 #include <assert.h>
 #include <pthread.h>
@@ -21,8 +22,9 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include <sisci_api.h>
 #include <sisci_error.h>
+#include <sisci_error.h>
+#include <sisci_types.h>
 
 #define NO_FLAGS          0
 #define NO_OFFSET         0
@@ -30,34 +32,7 @@
 #define NO_ARG            NULL
 #define MAX_SCI_DEVS      1
 #define COMM_SEGMENT_SIZE 4
-
-#define SCI_ERROR sci_error
-#define SCI(fn)                                 \
-    ({                                          \
-    sci_error_t  SCI_ERROR = SCI_ERR_OK;        \
-    fn;                                         \
-    if (handle_sisci_error(__FILE__, __LINE__, SCI_ERROR)) { \
-      return ncclInternalError;                 \
-    }                                           \
-    })
-
-#define SCI_RETURN(fn, ret_type)                \
-    ({                                          \
-    sci_error_t SCI_ERROR = SCI_ERR_OK;         \
-    ret_type    ret       = fn;                 \
-    if (handle_sisci_error(__FILE__, __LINE__, SCI_ERROR)) { \
-      return ncclInternalError;                 \
-    }                                           \
-    ret;                                        \
-    })
-
-#define SCI_WAIT(fn)                            \
-  do {						\
-    sci_error_t SCI_ERROR;			\
-    do {					\
-      fn;					\
-    } while (SCI_ERROR != SCI_ERR_OK);		\
-  } while (0)
+#define INFINITE_TIMEOUT 0xffffffff
 
 NCCL_PARAM(SciDisable, "SCI_DISABLE", 0);
 
@@ -70,26 +45,23 @@ struct ncclSisciDev ncclSisciDevs[MAX_SCI_DEVS];
 
 pthread_mutex_t ncclSisciLock = PTHREAD_MUTEX_INITIALIZER;
 
-int handle_sisci_error(const char *filename, int lineno, sci_error_t error) {
-  if (error != SCI_ERR_OK) {
-    printf("SCI error at %s:%d: %s\n", filename, lineno, SCIGetErrorString(error));
-    return 1;
-  }
-
-  return 0;
-}
-
 // Initialize the network.
 ncclResult_t ncclSisciInit(ncclDebugLogger_t logFunction) {
-    SCI(SCIInitialize(NO_FLAGS, &SCI_ERROR));
+    INFO(NCCL_NET|NCCL_INIT, "Trying to load SISCI");
+
+    if (load_sisci() != ncclSuccess) {
+        return ncclInternalError;
+    }
+
+    NCCLCHECK(WrapSisciInitialize(NO_FLAGS));
 
     struct ncclSisciDev dev = ncclSisciDevs[0];
 
     dev.adapter_no = 0;
 
-    SCI(SCIGetLocalNodeId(dev.adapter_no, &dev.node_id, NO_FLAGS, &SCI_ERROR));
+    NCCLCHECK(WrapSisciGetLocalNodeId(dev.adapter_no, &dev.node_id, NO_FLAGS));
 
-    INFO(NCCL_INIT|NCCL_NET, "NET/SCI : adapter %u, node id %u",
+    INFO(NCCL_INIT|NCCL_NET, "NET/SISCI : adapter %u, node id %u",
          dev.adapter_no, dev.node_id);
 
     return ncclSuccess;
@@ -159,7 +131,7 @@ ncclResult_t ncclSisciListen(int dev, void* opaqueHandle, void** listenComm) {
 
     NCCLCHECK(ncclCalloc(&comm, 1));
     comm->dev = &ncclSisciDevs[dev];
-    SCI(SCIOpen(&comm->sd, NO_FLAGS, &SCI_ERROR));
+    NCCLCHECK(WrapSisciOpen(&comm->sd, NO_FLAGS));
     *listenComm = comm;
 
     struct ncclSisciHandle* handle = (struct ncclSisciHandle*) opaqueHandle;
@@ -167,8 +139,8 @@ ncclResult_t ncclSisciListen(int dev, void* opaqueHandle, void** listenComm) {
                   "ncclSisciHandle size too large");
     handle->node_id = comm->dev->node_id;
 
-    SCI(SCICreateDataInterrupt(comm->sd, &comm->ir, comm->dev->adapter_no, &handle->irno,
-                               NO_CALLBACK, NO_ARG, NO_FLAGS, &SCI_ERROR));
+    NCCLCHECK(WrapSisciCreateDataInterrupt(comm->sd, &comm->ir, comm->dev->adapter_no, &handle->irno,
+                               NO_CALLBACK, NO_ARG, NO_FLAGS));
 
     return ncclSuccess;
 }
@@ -185,24 +157,23 @@ ncclResult_t ncclSisciConnect(int dev, void* opaqueHandle, void** sendComm) {
     sci_remote_data_interrupt_t ir;
     uint32_t data = htons(comm->dev->node_id);
 
-    SCI(SCIOpen(&sd, NO_FLAGS, &SCI_ERROR));
-    SCI(SCIConnectDataInterrupt(sd, &ir, handle->node_id,
+    NCCLCHECK(WrapSisciOpen(&sd, NO_FLAGS));
+    NCCLCHECK(WrapSisciConnectDataInterrupt(sd, &ir, handle->node_id,
                                 comm->dev->adapter_no, handle->irno,
-                                SCI_INFINITE_TIMEOUT, NO_FLAGS,
-                                &SCI_ERROR));
-    SCI(SCITriggerDataInterrupt(ir, &data, sizeof(data), NO_FLAGS, &SCI_ERROR));
+                                INFINITE_TIMEOUT, NO_FLAGS));
+    NCCLCHECK(WrapSisciTriggerDataInterrupt(ir, &data, sizeof(data), NO_FLAGS));
 
-    SCI(SCIOpen(&comm->sd, NO_FLAGS, &SCI_ERROR));
+    NCCLCHECK(WrapSisciOpen(&comm->sd, NO_FLAGS));
 
-    SCI_WAIT(SCIConnectSegment(comm->sd, &comm->segment, handle->node_id,
-                               comm->dev->node_id, comm->dev->adapter_no,
-                               NO_CALLBACK, NO_ARG, SCI_INFINITE_TIMEOUT,
-                               NO_FLAGS, &SCI_ERROR));
+    while (WrapSisciConnectSegment(comm->sd, &comm->segment, handle->node_id,
+                             comm->dev->node_id, comm->dev->adapter_no,
+                             NO_CALLBACK, NO_ARG, INFINITE_TIMEOUT,
+                             NO_FLAGS) != ncclSuccess) {
+        sleep(1);
+    }
 
-    comm->addr = SCI_RETURN(SCIMapRemoteSegment(comm->segment, &comm->map, NO_OFFSET,
-                                                COMM_SEGMENT_SIZE, NULL, NO_FLAGS,
-                                                &SCI_ERROR),
-                            volatile void*);
+    NCCLCHECK(WrapSisciMapRemoteSegment(comm->segment, &comm->map, NO_OFFSET,
+                                  COMM_SEGMENT_SIZE, &comm->addr, NO_FLAGS));
 
     *sendComm = comm;
 
@@ -217,30 +188,28 @@ ncclResult_t ncclSisciAccept(void* listenComm, void** recvComm) {
     unsigned int size = sizeof(data);
     unsigned int segment_id;
 
-    SCI(SCIWaitForDataInterrupt(lcomm->ir, &data, &size, SCI_INFINITE_TIMEOUT,
-                                NO_FLAGS, &SCI_ERROR));
+    NCCLCHECK(WrapSisciWaitForDataInterrupt(lcomm->ir, &data, &size, INFINITE_TIMEOUT,
+                                NO_FLAGS));
     segment_id = ntohs(data);
 
     NCCLCHECK(ncclCalloc(&rcomm, 1));
     rcomm->dev = lcomm->dev;
-    SCI(SCICreateSegment(rcomm->sd, &rcomm->segment, segment_id,
+    NCCLCHECK(WrapSisciCreateSegment(rcomm->sd, &rcomm->segment, segment_id,
                          COMM_SEGMENT_SIZE, NO_CALLBACK, NO_ARG,
-                         NO_FLAGS, &SCI_ERROR));
+                         NO_FLAGS));
 
-    SCI(SCIPrepareSegment(rcomm->segment, rcomm->dev->adapter_no,
-                          NO_FLAGS, &SCI_ERROR));
+    NCCLCHECK(WrapSisciPrepareSegment(rcomm->segment, rcomm->dev->adapter_no,
+                          NO_FLAGS));
 
-    SCI(SCISetSegmentAvailable(rcomm->segment, rcomm->dev->adapter_no,
-                               NO_FLAGS, &SCI_ERROR));
+    NCCLCHECK(WrapSisciSetSegmentAvailable(rcomm->segment, rcomm->dev->adapter_no,
+                               NO_FLAGS));
 
-    rcomm->addr = SCI_RETURN(SCIMapLocalSegment(rcomm->segment,
-                                                &rcomm->map,
-                                                NO_OFFSET,
-                                                COMM_SEGMENT_SIZE,
-                                                NULL,
-                                                NO_FLAGS,
-                                                &SCI_ERROR),
-                             volatile void*);
+    NCCLCHECK(WrapSisciMapLocalSegment(rcomm->segment,
+                                 &rcomm->map,
+                                 NO_OFFSET,
+                                 COMM_SEGMENT_SIZE,
+                                 &rcomm->addr,
+                                 NO_FLAGS));
 
     return ncclSuccess;
 }
@@ -290,7 +259,7 @@ ncclResult_t ncclSisciCloseListen(void* listenComm) {
 }
 
 ncclNet_t ncclNetSisci = {
-  "SCI",
+  "Sisci",
   ncclSisciInit,
   ncclSisciDevices,
   ncclSisciPciPath,

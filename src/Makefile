@@ -10,7 +10,7 @@ include ../makefiles/version.mk
 ##### src files
 INCEXPORTS  := nccl.h nccl_net.h
 LIBSRCFILES := init.cc channel.cc bootstrap.cc transport.cc enqueue.cc \
-                misc/group.cc misc/nvmlwrap.cc misc/ibvwrap.cc misc/rings.cc misc/utils.cc misc/argcheck.cc misc/trees.cc misc/topo.cc \
+                misc/group.cc misc/nvmlwrap.cc misc/ibvwrap.cc misc/sisciwrap.cc misc/rings.cc misc/utils.cc misc/argcheck.cc misc/trees.cc misc/topo.cc \
 		transport/p2p.cc transport/shm.cc transport/net.cc transport/net_socket.cc transport/net_ib.cc transport/net_sci.cc \
                 collectives/all_reduce.cc collectives/all_gather.cc collectives/broadcast.cc collectives/reduce.cc collectives/reduce_scatter.cc
 
@@ -128,7 +128,7 @@ install : lib
 	cp -P -v $(BUILDDIR)/lib/pkgconfig/* $(PREFIX)/lib/pkgconfig/
 	cp -v $(BUILDDIR)/include/* $(PREFIX)/include/
 
-FILESTOFORMAT := $(shell find . -name ".\#*" -prune -o \( -name "*.cc" -o -name "*.h" \) -print | grep -v -E 'ibvwrap.h|nvmlwrap.h|nccl.h')
+FILESTOFORMAT := $(shell find . -name ".\#*" -prune -o \( -name "*.cc" -o -name "*.h" \) -print | grep -v -E 'ibvwrap.h|sisciwrap.h|nvmlwrap.h|nccl.h')
 # Note that formatting.mk defines a new target so in order to not overwrite the default target,
 # it shouldn't be included at the top. Also, it uses the above definition of FILESTOFORMAT as well
 # as the BUILDDIR variable.
