@@ -77,7 +77,10 @@ ncclResult_t ncclSisciDevices(int* ndev) {
 
 // Return the device path in /sys. NCCL will call free on this path.
 ncclResult_t ncclSisciPciPath(int dev, char** path) {
-    strcpy(*path, "/sys/class/pci_bus/0000:08/device");
+    char devicepath[PATH_MAX];
+    strcpy(devicepath, "/sys/class/pci_bus/0000:08/device");
+    *path = realpath(devicepath, NULL);
+
     return ncclSuccess;
 }
 
