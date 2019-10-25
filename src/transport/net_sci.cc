@@ -55,14 +55,14 @@ ncclResult_t ncclSisciInit(ncclDebugLogger_t logFunction) {
 
     NCCLCHECK(WrapSisciInitialize(NO_FLAGS));
 
-    struct ncclSisciDev dev = ncclSisciDevs[0];
+    struct ncclSisciDev *dev = &ncclSisciDevs[0];
 
-    dev.adapter_no = 0;
+    dev->adapter_no = 0;
 
-    NCCLCHECK(WrapSisciGetLocalNodeId(dev.adapter_no, &dev.node_id, NO_FLAGS));
+    NCCLCHECK(WrapSisciGetLocalNodeId(dev->adapter_no, &dev->node_id, NO_FLAGS));
 
     INFO(NCCL_INIT|NCCL_NET, "NET/SISCI : adapter %u, node id %u",
-         dev.adapter_no, dev.node_id);
+         dev->adapter_no, dev->node_id);
 
     return ncclSuccess;
 }
