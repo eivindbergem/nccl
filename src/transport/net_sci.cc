@@ -26,19 +26,24 @@
 #include <sisci_error.h>
 #include <sisci_types.h>
 
-#define NO_FLAGS          0
-#define NO_OFFSET         0
-#define NO_CALLBACK       NULL
-#define NO_ARG            NULL
-#define MAX_SCI_DEVS      1
-#define COMM_SEGMENT_SIZE 4
-#define INFINITE_TIMEOUT 0xffffffff
+#define NO_FLAGS             0
+#define NO_OFFSET            0
+#define NO_CALLBACK          NULL
+#define NO_ARG               NULL
+#define MAX_SCI_DEVS         1
+#define MAILBOX_SEGMENT_SIZE 4*2
+#define INFINITE_TIMEOUT     0xffffffff
+#define MAX_NODES            60
+#define SEGMENT_PREFIX       0xbaba0000
+#define MEMORY_PREFIX        0x0000ba00
+#define MAILBOX_SEGMENT_ID   SEGMENT_PREFIX | 1
 
 NCCL_PARAM(SciDisable, "SCI_DISABLE", 0);
 
 struct ncclSisciDev {
     unsigned int adapter_no;
     unsigned int node_id;
+    unsigned int node_offset;
 };
 
 struct ncclSisciDev ncclSisciDevs[MAX_SCI_DEVS];
@@ -63,6 +68,8 @@ ncclResult_t ncclSisciInit(ncclDebugLogger_t logFunction) {
 
     INFO(NCCL_INIT|NCCL_NET, "NET/SISCI : adapter %u, node id %u",
          dev->adapter_no, dev->node_id);
+
+    dev->node_offset = (dev->node_id >> 1) - 1;
 
     return ncclSuccess;
 }
@@ -102,28 +109,50 @@ struct ncclSisciListenComm {
     struct ncclSisciDev *dev;
     sci_desc_t sd;
     sci_local_data_interrupt_t ir;
+    sci_local_segment_t segment;
+    sci_map_t map;
+    void *addr;
 };
 
-struct ncclSisciSendComm {
+struct ncclSisciComm {
     struct ncclSisciDev *dev;
     sci_desc_t sd;
-    sci_remote_segment_t segment;
     sci_map_t map;
     volatile void *addr;
-    sci_dma_queue_t dq;
+    unsigned int mem_handle_cnt;
 };
 
 struct ncclSisciRecvComm {
     struct ncclSisciDev *dev;
     sci_desc_t sd;
-    sci_local_segment_t segment;
     sci_map_t map;
     volatile void *addr;
+    unsigned int mem_handle_cnt;
+    sci_local_segment_t mailbox;
+};
+
+struct ncclSisciSendComm {
+    struct ncclSisciDev *dev;
+    sci_desc_t sd;
+    sci_map_t map;
+    volatile void *addr;
+    unsigned int mem_handle_cnt;
+
+    sci_remote_segment_t remote[2];
+    sci_dma_queue_t dq;
 };
 
 struct ncclSisciHandle {
     unsigned int node_id;
     unsigned int irno;
+};
+
+struct ncclSisciMemHandle {
+    unsigned int id;
+    sci_desc_t sd;
+    sci_local_segment_t segment;
+    unsigned int segment_id;
+    void *start_addr;
 };
 
 // Create a receiving object and provide a handle to connect to it. The
@@ -144,6 +173,24 @@ ncclResult_t ncclSisciListen(int dev, void* opaqueHandle, void** listenComm) {
 
     NCCLCHECK(WrapSisciCreateDataInterrupt(comm->sd, &comm->ir, comm->dev->adapter_no, &handle->irno,
                                NO_CALLBACK, NO_ARG, NO_FLAGS));
+
+    NCCLCHECK(WrapSisciCreateSegment(comm->sd, &comm->segment, MAILBOX_SEGMENT_ID,
+                                     MAILBOX_SEGMENT_SIZE*MAX_NODES, NO_CALLBACK,
+                                     NO_ARG, NO_FLAGS));
+
+    NCCLCHECK(WrapSisciPrepareSegment(comm->segment, comm->dev->adapter_no,
+                          NO_FLAGS));
+
+    NCCLCHECK(WrapSisciSetSegmentAvailable(comm->segment, comm->dev->adapter_no,
+                               NO_FLAGS));
+
+    // NCCLCHECK(WrapSisciMapLocalSegment(comm->segment,
+    //                              &comm->map,
+    //                              NO_OFFSET,
+    //                              COMM_SEGMENT_SIZE,
+    //                              &comm->addr,
+    //                              NO_FLAGS));
+
 
     return ncclSuccess;
 }
@@ -166,17 +213,18 @@ ncclResult_t ncclSisciConnect(int dev, void* opaqueHandle, void** sendComm) {
                                 INFINITE_TIMEOUT, NO_FLAGS));
     NCCLCHECK(WrapSisciTriggerDataInterrupt(ir, &data, sizeof(data), NO_FLAGS));
 
-    // NCCLCHECK(WrapSisciOpen(&comm->sd, NO_FLAGS));
+    NCCLCHECK(WrapSisciOpen(&comm->sd, NO_FLAGS));
 
-    // while (WrapSisciConnectSegment(comm->sd, &comm->segment, handle->node_id,
-    //                          comm->dev->node_id, comm->dev->adapter_no,
-    //                          NO_CALLBACK, NO_ARG, INFINITE_TIMEOUT,
-    //                          NO_FLAGS) != ncclSuccess) {
-    //     sleep(1);
-    // }
+    while (WrapSisciConnectSegment(comm->sd, &comm->remote[0], MAILBOX_SEGMENT_ID,
+                             comm->dev->node_id, comm->dev->adapter_no,
+                             NO_CALLBACK, NO_ARG, INFINITE_TIMEOUT,
+                             NO_FLAGS) != ncclSuccess) {
+        sleep(1);
+    }
 
-    // NCCLCHECK(WrapSisciMapRemoteSegment(comm->segment, &comm->map, NO_OFFSET,
-    //                               COMM_SEGMENT_SIZE, &comm->addr, NO_FLAGS));
+    NCCLCHECK(WrapSisciMapRemoteSegment(comm->remote[0], &comm->map,
+                                        MAILBOX_SEGMENT_SIZE*comm->dev->node_offset,
+                                        MAILBOX_SEGMENT_SIZE, &comm->addr, NO_FLAGS));
 
     *sendComm = comm;
 
@@ -189,30 +237,22 @@ ncclResult_t ncclSisciAccept(void* listenComm, void** recvComm) {
     struct ncclSisciRecvComm *rcomm;
     uint32_t data;
     unsigned int size = sizeof(data);
-    unsigned int segment_id;
+    unsigned int remote_node;
 
     NCCLCHECK(WrapSisciWaitForDataInterrupt(lcomm->ir, &data, &size, INFINITE_TIMEOUT,
                                 NO_FLAGS));
-    segment_id = ntohs(data);
+    remote_node = ntohs(data);
 
     NCCLCHECK(ncclCalloc(&rcomm, 1));
     rcomm->dev = lcomm->dev;
-    // NCCLCHECK(WrapSisciCreateSegment(rcomm->sd, &rcomm->segment, segment_id,
-    //                      COMM_SEGMENT_SIZE, NO_CALLBACK, NO_ARG,
-    //                      NO_FLAGS));
+    rcomm->mailbox = lcomm->segment;
 
-    // NCCLCHECK(WrapSisciPrepareSegment(rcomm->segment, rcomm->dev->adapter_no,
-    //                       NO_FLAGS));
-
-    // NCCLCHECK(WrapSisciSetSegmentAvailable(rcomm->segment, rcomm->dev->adapter_no,
-    //                            NO_FLAGS));
-
-    // NCCLCHECK(WrapSisciMapLocalSegment(rcomm->segment,
-    //                              &rcomm->map,
-    //                              NO_OFFSET,
-    //                              COMM_SEGMENT_SIZE,
-    //                              &rcomm->addr,
-    //                              NO_FLAGS));
+    NCCLCHECK(WrapSisciMapLocalSegment(rcomm->mailbox,
+                                       &rcomm->map,
+                                       MAILBOX_SEGMENT_SIZE*remote_node,
+                                       MAILBOX_SEGMENT_SIZE,
+                                       &rcomm->addr,
+                                       NO_FLAGS));
 
     return ncclSuccess;
 }
@@ -220,6 +260,13 @@ ncclResult_t ncclSisciAccept(void* listenComm, void** recvComm) {
 // Register/Deregister memory. Comm can be either a sendComm or a recvComm.
 // Type is either NCCL_PTR_HOST or NCCL_PTR_CUDA.
 ncclResult_t ncclSisciRegMr(void* comm, void* data, int size, int type, void** mhandle) {
+    // struct ncclSisicMemHandle memhandle;
+
+    // NCCLCHECK(ncclCalloc(&memhandle, 1));
+    // NCCLCHECK(WrapSisciOpen(&memhandle->sd, NO_FLAGS));
+    // NCCLCHECK(WrapSisciCreateSegment(memhandle->sd, &memhandle->segment,));
+    // NCCLCHECK(WrapSisciAttachPhysicalMemory());
+    // return ncclSuccess;
     return ncclInternalError;
 }
 ncclResult_t ncclSisciDeregMr(void* comm, void* mhandle) {
