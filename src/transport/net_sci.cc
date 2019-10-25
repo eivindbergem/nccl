@@ -166,17 +166,17 @@ ncclResult_t ncclSisciConnect(int dev, void* opaqueHandle, void** sendComm) {
                                 INFINITE_TIMEOUT, NO_FLAGS));
     NCCLCHECK(WrapSisciTriggerDataInterrupt(ir, &data, sizeof(data), NO_FLAGS));
 
-    NCCLCHECK(WrapSisciOpen(&comm->sd, NO_FLAGS));
+    // NCCLCHECK(WrapSisciOpen(&comm->sd, NO_FLAGS));
 
-    while (WrapSisciConnectSegment(comm->sd, &comm->segment, handle->node_id,
-                             comm->dev->node_id, comm->dev->adapter_no,
-                             NO_CALLBACK, NO_ARG, INFINITE_TIMEOUT,
-                             NO_FLAGS) != ncclSuccess) {
-        sleep(1);
-    }
+    // while (WrapSisciConnectSegment(comm->sd, &comm->segment, handle->node_id,
+    //                          comm->dev->node_id, comm->dev->adapter_no,
+    //                          NO_CALLBACK, NO_ARG, INFINITE_TIMEOUT,
+    //                          NO_FLAGS) != ncclSuccess) {
+    //     sleep(1);
+    // }
 
-    NCCLCHECK(WrapSisciMapRemoteSegment(comm->segment, &comm->map, NO_OFFSET,
-                                  COMM_SEGMENT_SIZE, &comm->addr, NO_FLAGS));
+    // NCCLCHECK(WrapSisciMapRemoteSegment(comm->segment, &comm->map, NO_OFFSET,
+    //                               COMM_SEGMENT_SIZE, &comm->addr, NO_FLAGS));
 
     *sendComm = comm;
 
@@ -197,22 +197,22 @@ ncclResult_t ncclSisciAccept(void* listenComm, void** recvComm) {
 
     NCCLCHECK(ncclCalloc(&rcomm, 1));
     rcomm->dev = lcomm->dev;
-    NCCLCHECK(WrapSisciCreateSegment(rcomm->sd, &rcomm->segment, segment_id,
-                         COMM_SEGMENT_SIZE, NO_CALLBACK, NO_ARG,
-                         NO_FLAGS));
+    // NCCLCHECK(WrapSisciCreateSegment(rcomm->sd, &rcomm->segment, segment_id,
+    //                      COMM_SEGMENT_SIZE, NO_CALLBACK, NO_ARG,
+    //                      NO_FLAGS));
 
-    NCCLCHECK(WrapSisciPrepareSegment(rcomm->segment, rcomm->dev->adapter_no,
-                          NO_FLAGS));
+    // NCCLCHECK(WrapSisciPrepareSegment(rcomm->segment, rcomm->dev->adapter_no,
+    //                       NO_FLAGS));
 
-    NCCLCHECK(WrapSisciSetSegmentAvailable(rcomm->segment, rcomm->dev->adapter_no,
-                               NO_FLAGS));
+    // NCCLCHECK(WrapSisciSetSegmentAvailable(rcomm->segment, rcomm->dev->adapter_no,
+    //                            NO_FLAGS));
 
-    NCCLCHECK(WrapSisciMapLocalSegment(rcomm->segment,
-                                 &rcomm->map,
-                                 NO_OFFSET,
-                                 COMM_SEGMENT_SIZE,
-                                 &rcomm->addr,
-                                 NO_FLAGS));
+    // NCCLCHECK(WrapSisciMapLocalSegment(rcomm->segment,
+    //                              &rcomm->map,
+    //                              NO_OFFSET,
+    //                              COMM_SEGMENT_SIZE,
+    //                              &rcomm->addr,
+    //                              NO_FLAGS));
 
     return ncclSuccess;
 }
