@@ -108,6 +108,7 @@ ncclResult_t load_sisci(void) {
   } while (0)
 
     LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIInitialize", SCIInternalInitialize);
+    LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIGetErrorString", SCIInternalGetErrorString);
     LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIGetLocalNodeId", SCIInternalGetLocalNodeId);
     LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIOpen", SCIInternalOpen);
     LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCICreateDataInterrupt", SCIInternalCreateDataInterrupt);
@@ -137,7 +138,8 @@ ncclResult_t load_sisci(void) {
 
 ncclResult_t handle_sisci_error(const char *filename, int lineno, sci_error_t error) {
   if (error != SCI_ERR_OK) {
-      INFO(NCCL_NET, "SISCI error at %s:%d: %s", filename, lineno, SCIInternalGetErrorString(error));
+      INFO(NCCL_NET, "SISCI error at %s:%d: %s", filename, lineno,
+           SCIInternalGetErrorString(error));
     return ncclInternalError;
   }
 
