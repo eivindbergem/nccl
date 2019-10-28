@@ -173,16 +173,16 @@ ncclResult_t load_sisci(void) {
     LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIMapLocalSegment", SCIInternalMapLocalSegment);
     LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIAttachPhysicalMemory", SCIInternalAttachPhysicalMemory);
     LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIRegisterSegmentMemory", SCIInternalRegisterSegmentMemory);
-    LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCITerminate)", SCIInternalTerminate);
-    LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIClose)", SCIInternalClose);
-    LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIDisconnectSegment)", SCIInternalDisconnectSegment);
-    LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIRemoveSegment)", SCIInternalRemoveSegment);
-    LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIQuery)", SCIInternalQuery);
-    LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCICreateDMAQueue)", SCIInternalCreateDMAQueue);
-    LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIRemoveDMAQueue)", SCIInternalRemoveDMAQueue);
-    LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIDMAQueueState)", SCIInternalDMAQueueState);
-    LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIRemoveDataInterrupt)", SCIInternalRemoveDataInterrupt);
-    LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIStartDmaTransfer)", SCIInternalStartDmaTransfer);
+    LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCITerminate", SCIInternalTerminate);
+    LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIClose", SCIInternalClose);
+    LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIDisconnectSegment", SCIInternalDisconnectSegment);
+    LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIRemoveSegment", SCIInternalRemoveSegment);
+    LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIQuery", SCIInternalQuery);
+    LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCICreateDMAQueue", SCIInternalCreateDMAQueue);
+    LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIRemoveDMAQueue", SCIInternalRemoveDMAQueue);
+    LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIDMAQueueState", SCIInternalDMAQueueState);
+    LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIRemoveDataInterrupt", SCIInternalRemoveDataInterrupt);
+    LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIStartDmaTransfer", SCIInternalStartDmaTransfer);
 
     return ncclSuccess;
 
