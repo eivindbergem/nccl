@@ -317,7 +317,7 @@ ncclResult_t ncclSisciRegMr(void* comm, void* data, int size, int type, void** m
                                                 SCI_FLAG_CUDA_BUFFER));
     } else {
         NCCLCHECK(WrapSisciRegisterSegmentMemory(data, size, memhandle->local_segment,
-                                                 SCI_FLAG_LOCK_USER_MEM));
+                                                 NO_FLAGS));
     }
 
     NCCLCHECK(WrapSisciPrepareSegment(memhandle->local_segment, gcomm->dev->adapter_no,
