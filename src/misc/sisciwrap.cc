@@ -97,6 +97,44 @@ void (*SCIInternalRegisterSegmentMemory)(void                *address,
                                          sci_local_segment_t segment,
                                          unsigned int        flags,
                                          sci_error_t         *error);
+void (*SCIInternalTerminate)(void);
+void (*SCIInternalClose)(sci_desc_t sd,
+                         unsigned int flags,
+                         sci_error_t *error);
+void (*SCIInternalDisconnectSegment)(sci_remote_segment_t segment,
+                                     unsigned int         flags,
+                                     sci_error_t          *error);
+void (*SCIInternalRemoveSegment)(sci_local_segment_t segment,
+                                 unsigned int        flags,
+                                 sci_error_t         *error);
+void (*SCIInternalQuery)(unsigned int command,
+                         void         *data,
+                         unsigned int flags,
+                         sci_error_t  *error);
+void (*SCIInternalCreateDMAQueue)(sci_desc_t      sd,
+                                  sci_dma_queue_t *dq,
+                                  unsigned int    localAdapterNo,
+                                  unsigned int    maxEntries,
+                                  unsigned int    flags,
+                                  sci_error_t     *error);
+void (*SCIInternalRemoveDMAQueue)(sci_dma_queue_t dq,
+                                  unsigned int    flags,
+                                  sci_error_t     *error);
+sci_dma_queue_state_t (*SCIInternalDMAQueueState)(sci_dma_queue_t dq);
+void (*SCIInternalRemoveDataInterrupt)(sci_local_data_interrupt_t interrupt,
+                                       unsigned int          flags,
+                                       sci_error_t           *error);
+void (*SCIInternalStartDmaTransfer)(sci_dma_queue_t      dq,
+                                    sci_local_segment_t  localSegment,
+                                    sci_remote_segment_t remoteSegment,
+                                    size_t               localOffset,
+                                    size_t               size,
+                                    size_t               remoteOffset,
+                                    sci_cb_dma_t         callback,
+                                    void                 *callbackArg,
+                                    unsigned int         flags,
+                                    sci_error_t          *error);
+
 
 ncclResult_t load_sisci(void) {
     static void* handle = NULL;
@@ -135,6 +173,16 @@ ncclResult_t load_sisci(void) {
     LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIMapLocalSegment", SCIInternalMapLocalSegment);
     LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIAttachPhysicalMemory", SCIInternalAttachPhysicalMemory);
     LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIRegisterSegmentMemory", SCIInternalRegisterSegmentMemory);
+    LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCITerminate)", SCIInternalTerminate);
+    LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIClose)", SCIInternalClose);
+    LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIDisconnectSegment)", SCIInternalDisconnectSegment);
+    LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIRemoveSegment)", SCIInternalRemoveSegment);
+    LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIQuery)", SCIInternalQuery);
+    LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCICreateDMAQueue)", SCIInternalCreateDMAQueue);
+    LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIRemoveDMAQueue)", SCIInternalRemoveDMAQueue);
+    LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIDMAQueueState)", SCIInternalDMAQueueState);
+    LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIRemoveDataInterrupt)", SCIInternalRemoveDataInterrupt);
+    LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIStartDmaTransfer)", SCIInternalStartDmaTransfer);
 
     return ncclSuccess;
 
@@ -298,4 +346,68 @@ ncclResult_t WrapSisciRegisterSegmentMemory(void                *address,
     return SCI(SCIInternalRegisterSegmentMemory(address, size,
                                                 segment, flags,
                                                 &SCI_ERROR));
+}
+
+ncclResult_t WrapSisciTerminate(void) {
+    return SCI(SCIInternalTerminate());
+}
+
+ncclResult_t WrapSisciClose(sci_desc_t sd,
+                            unsigned int flags) {
+    return SCI(SCIInternalClose(sd, flags, &SCI_ERROR));
+}
+
+ncclResult_t WrapSisciDisconnectSegment(sci_remote_segment_t segment,
+                                        unsigned int         flags) {
+    return SCI(SCIInternalDisconnectSegment(segment, flags, &SCI_ERROR));
+}
+
+ncclResult_t WrapSisciRemoveSegment(sci_local_segment_t segment,
+                                    unsigned int        flags) {
+    return SCI(SCIInternalRemoveSegment(segment, flags, &SCI_ERROR));
+}
+
+ncclResult_t WrapSisciQuery(unsigned int command,
+                            void         *data,
+                            unsigned int flags) {
+    return SCI(SCIInternalQuery(command, data, flags, &SCI_ERROR));
+}
+
+ncclResult_t WrapSisciCreateDMAQueue(sci_desc_t      sd,
+                                     sci_dma_queue_t *dq,
+                                     unsigned int    localAdapterNo,
+                                     unsigned int    maxEntries,
+                                     unsigned int    flags) {
+    return SCI(SCIInternalCreateDMAQueue(sd, dq, localAdapterNo,
+                                         maxEntries, flags, &SCI_ERROR));
+}
+
+ncclResult_t WrapSisciRemoveDMAQueue(sci_dma_queue_t dq,
+                                     unsigned int    flags) {
+    return SCI(SCIInternalRemoveDMAQueue(dq, flags, &SCI_ERROR));
+}
+ncclResult_t WrapSisciDMAQueueState(sci_dma_queue_t dq,
+                                    sci_dma_queue_state_t *state) {
+    *state = SCIInternalDMAQueueState(dq);
+
+    return ncclSuccess;
+}
+
+ncclResult_t WrapSisciRemoveDataInterrupt(sci_local_data_interrupt_t interrupt,
+                                          unsigned int          flags) {
+    return SCI(SCIInternalRemoveDataInterrupt(interrupt, flags, &SCI_ERROR));
+}
+
+ncclResult_t WrapSisciStartDmaTransfer(sci_dma_queue_t      dq,
+                                       sci_local_segment_t  localSegment,
+                                       sci_remote_segment_t remoteSegment,
+                                       size_t               localOffset,
+                                       size_t               size,
+                                       size_t               remoteOffset,
+                                       sci_cb_dma_t         callback,
+                                       void                 *callbackArg,
+                                       unsigned int         flags) {
+    return SCI(SCIInternalStartDmaTransfer(dq, localSegment, remoteSegment,
+                                            localOffset, size, remoteOffset,
+                                            callback, callbackArg, flags, &SCI_ERROR));
 }

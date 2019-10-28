@@ -170,4 +170,35 @@ ncclResult_t WrapSisciRegisterSegmentMemory(void                *address,
                                             sci_local_segment_t segment,
                                             unsigned int        flags);
 
+ncclResult_t WrapSisciTerminate(void);
+ncclResult_t WrapSisciClose(sci_desc_t sd,
+                            unsigned int flags);
+ncclResult_t WrapSisciDisconnectSegment(sci_remote_segment_t segment,
+                                        unsigned int         flags);
+ncclResult_t WrapSisciRemoveSegment(sci_local_segment_t segment,
+                                    unsigned int        flags);
+ncclResult_t WrapSisciQuery(unsigned int command,
+                            void         *data,
+                            unsigned int flags);
+ncclResult_t WrapSisciCreateDMAQueue(sci_desc_t      sd,
+                                     sci_dma_queue_t *dq,
+                                     unsigned int    localAdapterNo,
+                                     unsigned int    maxEntries,
+                                     unsigned int    flags);
+ncclResult_t WrapSisciRemoveDMAQueue(sci_dma_queue_t dq,
+                                     unsigned int    flags);
+ncclResult_t WrapSisciDMAQueueState(sci_dma_queue_t dq,
+                                    sci_dma_queue_state_t *state);
+ncclResult_t WrapSisciRemoveDataInterrupt(sci_local_data_interrupt_t interrupt,
+                                          unsigned int          flags);
+ncclResult_t WrapSisciStartDmaTransfer(sci_dma_queue_t      dq,
+                                       sci_local_segment_t  localSegment,
+                                       sci_remote_segment_t remoteSegment,
+                                       size_t               localOffset,
+                                       size_t               size,
+                                       size_t               remoteOffset,
+                                       sci_cb_dma_t         callback,
+                                       void                 *callbackArg,
+                                       unsigned int         flags);
+
 #endif //End include guard
