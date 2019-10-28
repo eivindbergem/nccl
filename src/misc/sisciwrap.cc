@@ -85,6 +85,18 @@ void* (*SCIInternalMapLocalSegment)(sci_local_segment_t segment,
                                     void                *addr,
                                     unsigned int        flags,
                                     sci_error_t         *error);
+void (*SCIInternalAttachPhysicalMemory)(sci_ioaddr_t         ioaddress,
+                                        void                *address,
+                                        unsigned int         busNo,
+                                        size_t               size,
+                                        sci_local_segment_t  segment,
+                                        unsigned int         flags,
+                                        sci_error_t         *error);
+void (*SCIInternalRegisterSegmentMemory)(void                *address,
+                                         size_t              size,
+                                         sci_local_segment_t segment,
+                                         unsigned int        flags,
+                                         sci_error_t         *error);
 
 ncclResult_t load_sisci(void) {
     static void* handle = NULL;
@@ -121,6 +133,8 @@ ncclResult_t load_sisci(void) {
     LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIPrepareSegment", SCIInternalPrepareSegment);
     LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCISetSegmentAvailable", SCIInternalSetSegmentAvailable);
     LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIMapLocalSegment", SCIInternalMapLocalSegment);
+    LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIAttachPhysicalMemory", SCIInternalAttachPhysicalMemory);
+    LOAD_SYM(handle, "_SISCI_PUBLIC_FUNC_ST_SCIRegisterSegmentMemory", SCIInternalRegisterSegmentMemory);
 
     return ncclSuccess;
 
@@ -138,7 +152,7 @@ ncclResult_t load_sisci(void) {
 
 ncclResult_t handle_sisci_error(const char *filename, int lineno, sci_error_t error) {
   if (error != SCI_ERR_OK) {
-      INFO(NCCL_NET, "SISCI error at %s:%d: %s", filename, lineno,
+      WARN("SISCI error at %s:%d: %s", filename, lineno,
            SCIInternalGetErrorString(error));
     return ncclInternalError;
   }
@@ -264,4 +278,24 @@ ncclResult_t WrapSisciMapLocalSegment(sci_local_segment_t   segment,
     *addr = SCIInternalMapLocalSegment(segment, map, offset, size,
                                        NULL, flags, &error);
     return handle_sisci_error(__FILE__, __LINE__, error);
+}
+
+ncclResult_t WrapSisciAttachPhysicalMemory(sci_ioaddr_t         ioaddress,
+                                           void                *address,
+                                           unsigned int         busNo,
+                                           size_t               size,
+                                           sci_local_segment_t  segment,
+                                           unsigned int         flags) {
+    return SCI(SCIInternalAttachPhysicalMemory(ioaddress, address,
+                                               busNo, size, segment,
+                                               flags, &SCI_ERROR));
+}
+
+ncclResult_t WrapSisciRegisterSegmentMemory(void                *address,
+                                            size_t              size,
+                                            sci_local_segment_t segment,
+                                            unsigned int        flags) {
+    return SCI(SCIInternalRegisterSegmentMemory(address, size,
+                                                segment, flags,
+                                                &SCI_ERROR));
 }
