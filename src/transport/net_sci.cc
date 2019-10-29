@@ -263,6 +263,7 @@ ncclResult_t ncclSisciConnect(int dev, void* opaqueHandle, void** sendComm) {
 // Finalize connection establishment after remote peer has called connectHandel
 ncclResult_t ncclSisciAccept(void* listenComm, void** recvComm) {
     struct ncclSisciListenComm *lcomm = (struct ncclSisciListenComm*)listenComm;
+
     struct ncclSisciRecvComm *rcomm;
 
     uint32_t data;
@@ -312,7 +313,7 @@ void* devptr(void* ptr)
     }
 
     INFO(NCCL_NET, "CUDA device buffer %p has device ptr %p", ptr, attrs.devicePointer);
-    return attrs.devicePointer;
+    return attrs.hostPointer;
 }
 
 // Register/Deregister memory. Comm can be either a sendComm or a recvComm.
@@ -326,7 +327,8 @@ ncclResult_t ncclSisciRegMr(void* comm, void* data, int size, int type, void** m
                                               size == NCCL_LL_BUFF_SIZE ? 1 : 0);
     memhandle->remote_segment_id = memory_segment_id(gcomm->dev->node_offset,
                                                      size == NCCL_LL_BUFF_SIZE ? 1 : 0);
-    memhandle->addr = devptr(data);
+    // memhandle->addr = devptr(data);
+    memhandle->addr = data;
 
     NCCLCHECK(WrapSisciOpen(&memhandle->sd, NO_FLAGS));
     NCCLCHECK(WrapSisciCreateSegment(memhandle->sd, &memhandle->local_segment,
@@ -338,9 +340,12 @@ ncclResult_t ncclSisciRegMr(void* comm, void* data, int size, int type, void** m
                                                 memhandle->local_segment,
                                                 SCI_FLAG_CUDA_BUFFER));
     } else {
-        NCCLCHECK(WrapSisciAttachPhysicalMemory((sci_ioaddr_t)memhandle->addr, NULL, 0, size,
-                                                memhandle->local_segment,
-                                                NO_FLAGS));
+        // NCCLCHECK(WrapSisciAttachPhysicalMemory(0, memhandle->addr, 0, size,
+        //                                         memhandle->local_segment,
+        //                                         NO_FLAGS));
+        NCCLCHECK(WrapSisciRegisterSegmentMemory(memhandle->addr, size,
+                                                 memhandle->local_segment,
+                                                 NO_FLAGS));
     }
 
     NCCLCHECK(WrapSisciPrepareSegment(memhandle->local_segment, gcomm->dev->adapter_no,
@@ -425,8 +430,41 @@ ncclResult_t ncclSisciCloseRecv(void* recvComm) {
     return ncclInternalError;
 }
 ncclResult_t ncclSisciCloseListen(void* listenComm) {
-    return ncclInternalError;
+    struct ncclSisciListenComm *comm = (struct ncclSisciListenComm*)listenComm;
+
+    return ncclSuccess;
 }
+
+// ncclResult_t ncclSisciHostAlloc(void *comm, void** ptr, void** devPtr,
+//                                 size_t size, void** mhandle) {
+//     struct ncclSisciComm *gcomm = (struct ncclSisciComm*)comm;
+
+//     struct ncclSisciMemHandle *memhandle;
+//     NCCLCHECK(ncclCalloc(&memhandle, 1));
+//     memhandle->segment_id = memory_segment_id(gcomm->remote_node_offset,
+//                                               size == NCCL_LL_BUFF_SIZE ? 1 : 0);
+//     memhandle->remote_segment_id = memory_segment_id(gcomm->dev->node_offset,
+//                                                      size == NCCL_LL_BUFF_SIZE ? 1 : 0);
+
+//     NCCLCHECK(WrapSisciOpen(&memhandle->sd, NO_FLAGS));
+//     NCCLCHECK(WrapSisciCreateSegment(memhandle->sd, &memhandle->local_segment,
+//                                      memhandle->segment_id, size,
+//                                      NO_CALLBACK, NO_ARG, NO_FLAGS));
+
+//     NCCLCHECK(WrapSisciPrepareSegment(memhandle->local_segment, gcomm->dev->adapter_no,
+//                                       NO_FLAGS));
+//     NCCLCHECK(WrapSisciSetSegmentAvailable(memhandle->local_segment, gcomm->dev->adapter_no,
+//                                            NO_FLAGS));
+
+//     NCCLCHECK(WrapSisciMapRemoteSegment(memhandle->mailbox, &memhandle->map,
+//                                         NO_OFFSET, size, ptr, NO_FLAGS));
+//     *devPtr = *ptr;
+
+//     memhandle->addr = *ptr;
+
+//     return ncclSuccess;
+
+// }
 
 ncclNet_t ncclNetSisci = {
   "Sisci",
