@@ -118,6 +118,7 @@ struct ncclSisciMemHandle {
     sci_map_t remote_map;
     unsigned int segment_id;
     unsigned int remote_segment_id;
+    unsigned int memory_id;
     void *addr;
 };
 
@@ -164,7 +165,7 @@ struct ncclSisciHandle {
 struct ncclSisciRequest {
     enum ncclSisciCommType type;
     void *comm;
-    unsigned int ll_mode;
+    unsigned int memory_id;
 };
 
 static unsigned int memory_segment_id(unsigned int node_offset,
@@ -323,10 +324,11 @@ ncclResult_t ncclSisciRegMr(void* comm, void* data, int size, int type, void** m
 
     struct ncclSisciMemHandle *memhandle;
     NCCLCHECK(ncclCalloc(&memhandle, 1));
+    memhandle->memory_id = size == NCCL_LL_BUFF_SIZE ? 1 : 0;
     memhandle->segment_id = memory_segment_id(gcomm->remote_node_offset,
-                                              size == NCCL_LL_BUFF_SIZE ? 1 : 0);
+                                              memhandle->memory_id);
     memhandle->remote_segment_id = memory_segment_id(gcomm->dev->node_offset,
-                                                     size == NCCL_LL_BUFF_SIZE ? 1 : 0);
+                                                     memhandle->memory_id);
     // memhandle->addr = devptr(data);
     memhandle->addr = data;
 
@@ -385,6 +387,8 @@ ncclResult_t ncclSisciIsend(void* sendComm, void* data, int size, void* mhandle,
 
     NCCLCHECK(ncclCalloc(&req, 1));
 
+    *((uint8_t*)comm->addr+req->memory_id) = 0;
+
     if (memhandle->remote_segment == NULL) {
         NCCLCHECK(WrapSisciConnectSegment(memhandle->sd, &memhandle->remote_segment,
                                           comm->remote_node_id, memhandle->remote_segment_id,
@@ -396,8 +400,9 @@ ncclResult_t ncclSisciIsend(void* sendComm, void* data, int size, void* mhandle,
                                         memhandle->remote_segment, offset, size,
                                         offset, NO_CALLBACK, NO_ARG, NO_FLAGS));
 
-    req->type = SISCI_RECV;
+    req->type = SISCI_SEND;
     req->comm = sendComm;
+    req->memory_id = memhandle->memory_id;
 
     return ncclSuccess;
 
@@ -407,19 +412,49 @@ ncclResult_t ncclSisciIsend(void* sendComm, void* data, int size, void* mhandle,
 // Asynchronous recv from a peer.
 // May return request == NULL if the call cannot be performed (or would block)
 ncclResult_t ncclSisciIrecv(void* recvComm, void* data, int size, void* mhandle, void** request) {
-    return ncclInternalError;
+    struct ncclSisciRequest *req;
+    struct ncclSisciMemHandle *memhandle = (struct ncclSisciMemHandle*)mhandle;
+
+    NCCLCHECK(ncclCalloc(&req, 1));
+
+    req->type = SISCI_RECV;
+    req->comm = recvComm;
+    req->memory_id = memhandle->memory_id;
+
+    return ncclSuccess;
 }
 
 // Perform a flush/fence to make sure all data received with NCCL_PTR_CUDA is
 // visible to the GPU
 ncclResult_t ncclSisciFlush(void* recvComm, void* data, int size, void* mhandle) {
-    return ncclInternalError;
+    return ncclSuccess;
 }
 
 // Test whether a request is complete. If size is not NULL, it returns the
 // number of bytes sent/received.
 ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
-    return ncclInternalError;
+    struct ncclSisciRequest *req = (struct ncclSisciRequest*)request;
+
+    if (req->type == SISCI_SEND) {
+        struct ncclSisciSendComm *comm = (struct ncclSisciSendComm*)req->comm;
+        sci_dma_queue_state_t state;
+        NCCLCHECK(WrapSisciDMAQueueState(comm->dq, &state));
+
+        if (state == SCI_DMAQUEUE_IDLE || state == SCI_DMAQUEUE_DONE) {
+        // NCCLCHECK(WrapSisciWaitForDMAQueue(comm->dq, SCI_INFINITE_TIMEOUT,
+        //                                    NO_FLAGS));
+
+            *((uint8_t*)comm->addr+req->memory_id) = 1;
+            *done = 1;
+        }
+    }
+    else {
+        struct ncclSisciRecvComm *comm = (struct ncclSisciRecvComm*)req->comm;
+
+        *done = *((uint8_t*)comm->addr+req->memory_id);
+    }
+
+    return ncclSuccess;
 }
 
 // Close and free send/recv comm objects

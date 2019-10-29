@@ -386,6 +386,7 @@ ncclResult_t WrapSisciRemoveDMAQueue(sci_dma_queue_t dq,
                                      unsigned int    flags) {
     return SCI(SCIInternalRemoveDMAQueue(dq, flags, &SCI_ERROR));
 }
+
 ncclResult_t WrapSisciDMAQueueState(sci_dma_queue_t dq,
                                     sci_dma_queue_state_t *state) {
     *state = SCIInternalDMAQueueState(dq);
