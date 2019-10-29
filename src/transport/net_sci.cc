@@ -293,6 +293,28 @@ ncclResult_t ncclSisciAccept(void* listenComm, void** recvComm) {
     return ncclSuccess;
 }
 
+void* devptr(void* ptr)
+{
+    cudaPointerAttributes attrs;
+
+    cudaError_t err; // = cudaSetDevice(gpu);
+    // if (err != cudaSuccess)
+    // {
+        // log_error("Failed to set GPU: %s", cudaGetErrorString(err));
+    //     return NULL;
+    // }
+
+    err = cudaPointerGetAttributes(&attrs, ptr);
+    if (err != cudaSuccess)
+    {
+        WARN("Failed to get pointer attributes: %s", cudaGetErrorString(err));
+        return NULL;
+    }
+
+    INFO(NCCL_NET, "CUDA device buffer %p has device ptr %p", ptr, attrs.devicePointer);
+    return attrs.devicePointer;
+}
+
 // Register/Deregister memory. Comm can be either a sendComm or a recvComm.
 // Type is either NCCL_PTR_HOST or NCCL_PTR_CUDA.
 ncclResult_t ncclSisciRegMr(void* comm, void* data, int size, int type, void** mhandle) {
@@ -304,7 +326,7 @@ ncclResult_t ncclSisciRegMr(void* comm, void* data, int size, int type, void** m
                                               size == NCCL_LL_BUFF_SIZE ? 1 : 0);
     memhandle->remote_segment_id = memory_segment_id(gcomm->dev->node_offset,
                                                      size == NCCL_LL_BUFF_SIZE ? 1 : 0);
-    memhandle->addr = data;
+    memhandle->addr = devptr(data);
 
     NCCLCHECK(WrapSisciOpen(&memhandle->sd, NO_FLAGS));
     NCCLCHECK(WrapSisciCreateSegment(memhandle->sd, &memhandle->local_segment,
@@ -312,11 +334,11 @@ ncclResult_t ncclSisciRegMr(void* comm, void* data, int size, int type, void** m
                                      NO_CALLBACK, NO_ARG, SCI_FLAG_EMPTY));
 
     if (type == NCCL_PTR_CUDA) {
-        NCCLCHECK(WrapSisciAttachPhysicalMemory((sci_ioaddr_t)data, NULL, 0, size,
+        NCCLCHECK(WrapSisciAttachPhysicalMemory((sci_ioaddr_t)memhandle->addr, NULL, 0, size,
                                                 memhandle->local_segment,
                                                 SCI_FLAG_CUDA_BUFFER));
     } else {
-        NCCLCHECK(WrapSisciAttachPhysicalMemory((sci_ioaddr_t)data, NULL, 0, size,
+        NCCLCHECK(WrapSisciAttachPhysicalMemory((sci_ioaddr_t)memhandle->addr, NULL, 0, size,
                                                 memhandle->local_segment,
                                                 NO_FLAGS));
     }
