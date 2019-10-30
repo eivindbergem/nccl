@@ -407,10 +407,12 @@ ncclResult_t ncclSisciIsend(void* sendComm, void* data, int size, void* mhandle,
     *((uint8_t*)comm->addr+req->memory_id) = 0;
 
     if (memhandle->remote_segment == NULL) {
-        NCCLCHECK(WrapSisciConnectSegment(memhandle->sd, &memhandle->remote_segment,
-                                          comm->remote_node_id, memhandle->remote_segment_id,
-                                          comm->dev->adapter_no, NO_CALLBACK, NO_ARG,
-                                          SCI_INFINITE_TIMEOUT, NO_FLAGS));
+        while (WrapSisciConnectSegment(memhandle->sd, &memhandle->remote_segment,
+                                       comm->remote_node_id, memhandle->remote_segment_id,
+                                       comm->dev->adapter_no, NO_CALLBACK, NO_ARG,
+                                       SCI_INFINITE_TIMEOUT, NO_FLAGS) != ncclSuccess) {
+            sleep(1);
+        }
     }
 
     if (size > 0) {
