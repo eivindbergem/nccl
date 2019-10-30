@@ -413,13 +413,17 @@ ncclResult_t ncclSisciIsend(void* sendComm, void* data, int size, void* mhandle,
                                           SCI_INFINITE_TIMEOUT, NO_FLAGS));
     }
 
-    NCCLCHECK(WrapSisciStartDmaTransfer(comm->dq, memhandle->local_segment,
-                                        memhandle->remote_segment, offset, size,
-                                        offset, NO_CALLBACK, NO_ARG, NO_FLAGS));
+    if (size > 0) {
+        NCCLCHECK(WrapSisciStartDmaTransfer(comm->dq, memhandle->local_segment,
+                                            memhandle->remote_segment, offset, size,
+                                            offset, NO_CALLBACK, NO_ARG, NO_FLAGS));
+    }
 
     req->type = SISCI_SEND;
     req->comm = sendComm;
     req->memory_id = memhandle->memory_id;
+
+    *request = req;
 
     return ncclSuccess;
 
@@ -437,6 +441,8 @@ ncclResult_t ncclSisciIrecv(void* recvComm, void* data, int size, void* mhandle,
     req->type = SISCI_RECV;
     req->comm = recvComm;
     req->memory_id = memhandle->memory_id;
+
+    *request = req;
 
     return ncclSuccess;
 }
