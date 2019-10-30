@@ -491,10 +491,10 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
         // NCCLCHECK(WrapSisciWaitForDMAQueue(comm->dq, SCI_INFINITE_TIMEOUT,
         //                                    NO_FLAGS));
 
-            // *((uint8_t*)comm->addr+req->memory_id) = 1;
-            // *done = 1;
-            *done = 0;
+            *done = 1;
+            // *done = 0;
             printf("%d\n", *((uint8_t*)comm->addr+req->memory_id));
+            *((uint8_t*)comm->addr+req->memory_id) = 1;
         }
     }
     else {
