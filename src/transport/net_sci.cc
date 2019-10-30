@@ -30,7 +30,7 @@
 #define NO_OFFSET             0
 #define NO_CALLBACK           NULL
 #define NO_ARG                NULL
-#define MAX_SCI_DEVS          1
+#define MAX_SCI_DEVS          4
 #define MAILBOX_SEGMENT_SIZE  4*2
 #define INFINITE_TIMEOUT      0xffffffff
 #define MAX_NODES             60
@@ -42,6 +42,7 @@
 NCCL_PARAM(SciDisable, "SCI_DISABLE", 0);
 
 struct ncclSisciDev {
+    unsigned int available;
     unsigned int adapter_no;
     unsigned int node_id;
     unsigned int node_offset;
@@ -50,6 +51,8 @@ struct ncclSisciDev {
 struct ncclSisciDev ncclSisciDevs[MAX_SCI_DEVS];
 
 pthread_mutex_t ncclSisciLock = PTHREAD_MUTEX_INITIALIZER;
+
+
 
 // Initialize the network.
 ncclResult_t ncclSisciInit(ncclDebugLogger_t logFunction) {
@@ -61,16 +64,24 @@ ncclResult_t ncclSisciInit(ncclDebugLogger_t logFunction) {
 
     NCCLCHECK(WrapSisciInitialize(NO_FLAGS));
 
-    struct ncclSisciDev *dev = &ncclSisciDevs[0];
+    for (int i = 0; i < MAX_SCI_DEVS; i++) {
+        struct ncclSisciDev *dev = &ncclSisciDevs[i];
 
-    dev->adapter_no = 0;
+        dev->adapter_no = i;
 
-    NCCLCHECK(WrapSisciGetLocalNodeId(dev->adapter_no, &dev->node_id, NO_FLAGS));
+        if (WrapSisciGetLocalNodeId(dev->adapter_no, &dev->node_id, NO_FLAGS) ==
+            ncclSuccess) {
+            INFO(NCCL_INIT|NCCL_NET, "NET/SISCI : adapter %u, node id %u",
+                 dev->adapter_no, dev->node_id);
 
-    INFO(NCCL_INIT|NCCL_NET, "NET/SISCI : adapter %u, node id %u",
-         dev->adapter_no, dev->node_id);
+            dev->node_offset = (dev->node_id >> 1) - 1;
 
-    dev->node_offset = (dev->node_id >> 1) - 1;
+            dev->available = 1;
+        }
+        else {
+            break;
+        }
+    }
 
     return ncclSuccess;
 }
@@ -79,7 +90,13 @@ ncclResult_t ncclSisciInit(ncclDebugLogger_t logFunction) {
 ncclResult_t ncclSisciDevices(int* ndev) {
     // return 1;
     // return (ncclSisciDevs[0] != NULL ? 1 : 0);
-    *ndev = 1;
+    for (int i = 0; i < MAX_SCI_DEVS; i++) {
+        if (ncclSisciDevs[i].available == 0) {
+            *ndev = i;
+            break;
+        }
+    }
+
     return ncclSuccess;
 }
 
