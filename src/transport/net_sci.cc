@@ -246,6 +246,7 @@ ncclResult_t ncclSisciConnect(int dev, void* opaqueHandle, void** sendComm) {
     NCCLCHECK(ncclCalloc(&comm, 1));
     comm->dev = &ncclSisciDevs[dev];
     comm->remote_node_id = handle->node_id;
+    comm->remote_node_offset = (comm->remote_node_id >> 2) - 1;
 
     sci_desc_t sd;
     sci_remote_data_interrupt_t ir;
@@ -293,7 +294,7 @@ ncclResult_t ncclSisciAccept(void* listenComm, void** recvComm) {
     NCCLCHECK(WrapSisciWaitForDataInterrupt(lcomm->ir, &data, &size, INFINITE_TIMEOUT,
                                             NO_FLAGS));
     rcomm->remote_node_offset = ntohs(data);
-    rcomm->addr = (uint8_t*)lcomm->addr + MAILBOX_SEGMENT_SIZE*rcomm->dev->node_offset;
+    rcomm->addr = (uint8_t*)lcomm->addr + MAILBOX_SEGMENT_SIZE*rcomm->remote_node_offset;
 
     *recvComm = rcomm;
     // remote_node = ntohs(data);
@@ -431,7 +432,7 @@ ncclResult_t ncclSisciIsend(void* sendComm, void* data, int size, void* mhandle,
 
     *request = req;
 
-    *((uint8_t*)comm->addr+req->memory_id) = 1;
+    // *((uint8_t*)comm->addr+req->memory_id) = 1;
 
     return ncclSuccess;
 
