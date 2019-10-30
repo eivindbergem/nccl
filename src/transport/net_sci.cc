@@ -503,7 +503,7 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
         print_mailbox(comm->mailbox);
 
         // *done = *((uint8_t*)comm->addr+req->memory_id);
-        *done = 1;
+        *done = 0;
     }
 
     return ncclSuccess;
