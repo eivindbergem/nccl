@@ -350,22 +350,26 @@ ncclResult_t ncclSisciRegMr(void* comm, void* data, int size, int type, void** m
     memhandle->addr = data;
 
     NCCLCHECK(WrapSisciOpen(&memhandle->sd, NO_FLAGS));
+    // NCCLCHECK(WrapSisciCreateSegment(memhandle->sd, &memhandle->local_segment,
+    //                                  memhandle->segment_id, size,
+    //                                  NO_CALLBACK, NO_ARG, SCI_FLAG_EMPTY));
     NCCLCHECK(WrapSisciCreateSegment(memhandle->sd, &memhandle->local_segment,
                                      memhandle->segment_id, size,
-                                     NO_CALLBACK, NO_ARG, SCI_FLAG_EMPTY));
+                                     NO_CALLBACK, NO_ARG, NO_FLAGS));
 
-    if (type == NCCL_PTR_CUDA) {
-        NCCLCHECK(WrapSisciAttachPhysicalMemory((sci_ioaddr_t)memhandle->addr, NULL, 0, size,
-                                                memhandle->local_segment,
-                                                SCI_FLAG_CUDA_BUFFER));
-    } else {
-        // NCCLCHECK(WrapSisciAttachPhysicalMemory(0, memhandle->addr, 0, size,
-        //                                         memhandle->local_segment,
-        //                                         NO_FLAGS));
-        NCCLCHECK(WrapSisciRegisterSegmentMemory(memhandle->addr, size,
-                                                 memhandle->local_segment,
-                                                 NO_FLAGS));
-    }
+
+    // if (type == NCCL_PTR_CUDA) {
+    //     NCCLCHECK(WrapSisciAttachPhysicalMemory((sci_ioaddr_t)memhandle->addr, NULL, 0, size,
+    //                                             memhandle->local_segment,
+    //                                             SCI_FLAG_CUDA_BUFFER));
+    // } else {
+    //     // NCCLCHECK(WrapSisciAttachPhysicalMemory(0, memhandle->addr, 0, size,
+    //     //                                         memhandle->local_segment,
+    //     //                                         NO_FLAGS));
+    //     NCCLCHECK(WrapSisciRegisterSegmentMemory(memhandle->addr, size,
+    //                                              memhandle->local_segment,
+    //                                              NO_FLAGS));
+    // }
 
     NCCLCHECK(WrapSisciPrepareSegment(memhandle->local_segment, gcomm->dev->adapter_no,
                                       NO_FLAGS));
@@ -426,6 +430,8 @@ ncclResult_t ncclSisciIsend(void* sendComm, void* data, int size, void* mhandle,
     req->memory_id = memhandle->memory_id;
 
     *request = req;
+
+    *((uint8_t*)comm->addr+req->memory_id) = 1;
 
     return ncclSuccess;
 
