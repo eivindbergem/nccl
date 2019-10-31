@@ -171,6 +171,7 @@ struct ncclSisciSendComm {
     sci_remote_segment_t mailbox;
     sci_dma_queue_t dq;
     unsigned int request_cnt;
+    unsigned int busy;
 };
 
 struct ncclSisciListenComm {
@@ -449,11 +450,12 @@ ncclResult_t ncclSisciIsend(void* sendComm, void* data, int size, void* mhandle,
            memhandle->memory_id,
            *(uint32_t*)data);
 
-    /* if (*status > 0) { */
-    /*     *request = NULL; */
-    /*     return ncclSuccess; */
-    /* } */
+    if (comm->busy) {
+        *request = NULL;
+        return ncclSuccess;
+    }
 
+    comm->busy = 1;
     *status = 1;
 
     NCCLCHECK(ncclCalloc(&req, 1));
@@ -573,6 +575,7 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
         if (*status == 3) {
             *done = 1;
             *status = 4;
+            comm->busy = 0;
         }
     }
     else {
