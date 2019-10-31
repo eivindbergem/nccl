@@ -149,6 +149,7 @@ struct ncclSisciRecvComm {
     volatile void *addr;
     volatile void *mailbox;
     struct ncclSisciMemHandle mem_handles[MEMORY_SEGMENTS];
+    unsigned int request_cnt;
 };
 
 struct ncclSisciSendComm {
@@ -165,6 +166,7 @@ struct ncclSisciSendComm {
 
     sci_remote_segment_t mailbox;
     sci_dma_queue_t dq;
+    unsigned int request_cnt;
 };
 
 struct ncclSisciListenComm {
@@ -185,6 +187,7 @@ struct ncclSisciRequest {
     enum ncclSisciCommType type;
     void *comm;
     unsigned int memory_id;
+    unsigned int id;
 };
 
 static unsigned int memory_segment_id(unsigned int node_offset,
@@ -456,6 +459,9 @@ ncclResult_t ncclSisciIsend(void* sendComm, void* data, int size, void* mhandle,
     req->type = SISCI_SEND;
     req->comm = sendComm;
     req->memory_id = memhandle->memory_id;
+    req->id = comm->request_cnt++;
+
+    printf("Sending request %d\n", req->id);
 
     *request = req;
 
@@ -471,12 +477,16 @@ ncclResult_t ncclSisciIsend(void* sendComm, void* data, int size, void* mhandle,
 ncclResult_t ncclSisciIrecv(void* recvComm, void* data, int size, void* mhandle, void** request) {
     struct ncclSisciRequest *req;
     struct ncclSisciMemHandle *memhandle = (struct ncclSisciMemHandle*)mhandle;
+    struct ncclSisciRecvComm *comm = (struct ncclSisciRecvComm*)recvComm;
 
     NCCLCHECK(ncclCalloc(&req, 1));
 
     req->type = SISCI_RECV;
     req->comm = recvComm;
     req->memory_id = memhandle->memory_id;
+    req->id = comm->request_cnt++;
+
+    printf("Receiving request %d\n", req->id);
 
     *request = req;
 
@@ -507,7 +517,7 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
             // *done = 0;
             // printf("%d\n", *((uint32_t*)comm->addr+req->memory_id));
             *((uint32_t*)comm->addr+req->memory_id) = 1;
-            printf("Setting remote flag: req=%p, memory_id=%d\n", req,
+            printf("Setting remote flag: req->id=%d, memory_id=%d\n", req->id,
                    req->memory_id);
 
             // for (int i = 0; i < MAILBOX_SEGMENT_SIZE*MAX_NODES; i++) {
@@ -523,7 +533,7 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
 
         *done = *((uint32_t*)comm->addr+req->memory_id);
 
-        printf("Local flag: req=%p, value=%d, memory_id=%d\n", req, *done,
+        printf("Local flag: req->id=%d, value=%d, memory_id=%d\n", req->id, *done,
                req->memory_id);
 
         if (*done) {
