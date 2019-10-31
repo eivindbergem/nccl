@@ -490,6 +490,7 @@ ncclResult_t ncclSisciIrecv(void* recvComm, void* data, int size, void* mhandle,
     req->memory_id = memhandle->memory_id;
     req->id = comm->request_cnt++;
 
+    *((uint32_t*)comm->addr+req->memory_id) = 0;
     comm->unhandled_requests = 1;
 
     printf("Receiving request %d\n", req->id);
