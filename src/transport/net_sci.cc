@@ -150,6 +150,7 @@ struct ncclSisciRecvComm {
     volatile void *mailbox;
     struct ncclSisciMemHandle mem_handles[MEMORY_SEGMENTS];
     unsigned int request_cnt;
+    unsigned int unhandled_requests;
 };
 
 struct ncclSisciSendComm {
@@ -238,9 +239,9 @@ ncclResult_t ncclSisciListen(int dev, void* opaqueHandle, void** listenComm) {
                                        &comm->addr,
                                        NO_FLAGS));
 
-    for (int i = 0; i < MAILBOX_SEGMENT_SIZE*MAX_NODES; i++) {
-        ((uint32_t*)comm->addr)[i] = 1;
-    }
+    // for (int i = 0; i < MAILBOX_SEGMENT_SIZE*MAX_NODES; i++) {
+    //     ((uint32_t*)comm->addr)[i] = 1;
+    // }
 
     // NCCLCHECK(WrapSisciMapLocalSegment(comm->segment,
     //                              &comm->map,
@@ -477,7 +478,7 @@ ncclResult_t ncclSisciIrecv(void* recvComm, void* data, int size, void* mhandle,
     struct ncclSisciMemHandle *memhandle = (struct ncclSisciMemHandle*)mhandle;
     struct ncclSisciRecvComm *comm = (struct ncclSisciRecvComm*)recvComm;
 
-    if (*((uint32_t*)comm->addr+memhandle->memory_id) == 0) {
+    if (comm->unhandled_requests) {
         *request = NULL;
         return ncclSuccess;
     }
@@ -489,7 +490,7 @@ ncclResult_t ncclSisciIrecv(void* recvComm, void* data, int size, void* mhandle,
     req->memory_id = memhandle->memory_id;
     req->id = comm->request_cnt++;
 
-    *((uint32_t*)comm->addr+req->memory_id) = 0;
+    comm->unhandled_requests = 1;
 
     printf("Receiving request %d\n", req->id);
 
@@ -540,6 +541,8 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
 
         printf("Local flag: req->id=%d, value=%d, memory_id=%d\n", req->id, *done,
                req->memory_id);
+
+        comm->unhandled_requests = 1 - *done;
 
         // *done = 0;
     }
