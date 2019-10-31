@@ -427,12 +427,16 @@ ncclResult_t ncclSisciIsend(void* sendComm, void* data, int size, void* mhandle,
     struct ncclSisciRequest *req;
     size_t offset = (uint8_t*)data - (uint8_t*)memhandle->addr;
 
-    NCCLCHECK(ncclCalloc(&req, 1));
+    printf("Send data: status=%d, memory_id=%d\n",
+           *((uint32_t*)comm->addr+memhandle->memory_id),
+           memhandle->memory_id);
 
-    if (*((uint32_t*)comm->addr+req->memory_id)) {
+    if (*((uint32_t*)comm->addr+memhandle->memory_id)) {
         *request = NULL;
         return ncclSuccess;
     }
+
+    NCCLCHECK(ncclCalloc(&req, 1));
 
     if (memhandle->remote_segment == NULL) {
         while (WrapSisciConnectSegment(memhandle->sd, &memhandle->remote_segment,
