@@ -113,7 +113,8 @@ ncclResult_t ncclSisciPciPath(int dev, char** path) {
 // as data from the current GPU. Supported types should be composed with
 // NCCL_PTR_HOST and NCCL_PTR_CUDA.
 ncclResult_t ncclSisciPtrSupport(int dev, int* supportedTypes) {
-    *supportedTypes = NCCL_PTR_HOST | NCCL_PTR_CUDA;
+    // *supportedTypes = NCCL_PTR_HOST | NCCL_PTR_CUDA;
+    *supportedTypes = NCCL_PTR_HOST;
 
     return ncclSuccess;
 }
@@ -539,6 +540,7 @@ ncclResult_t ncclSisciFlush(void* recvComm, void* data, int size, void* mhandle)
 // number of bytes sent/received.
 ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
     struct ncclSisciRequest *req = (struct ncclSisciRequest*)request;
+    *done = 0;
 
     if (req->type == SISCI_SEND) {
         struct ncclSisciSendComm *comm = (struct ncclSisciSendComm*)req->comm;
@@ -569,7 +571,7 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
 
         if (*status == 3) {
             *done = 1;
-            *status = 0;
+            *status = 4;
         }
     }
     else {
@@ -581,15 +583,17 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
                req->memory_id);
 
         if (*status == 2) {
-            *done = 1;
-
-
             comm->unhandled_requests = 0;;
 
             memcpy(req->data, (void*)req->memhandle->segment_addr, req->size);
 
             *status = 3;
             if (size) *size = req->size;
+        }
+
+        if (*status == 4) {
+            *done = 1;
+            *status = 0;
         }
 
         // *done = 0;
