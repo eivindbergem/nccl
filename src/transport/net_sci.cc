@@ -238,11 +238,9 @@ ncclResult_t ncclSisciListen(int dev, void* opaqueHandle, void** listenComm) {
                                        &comm->addr,
                                        NO_FLAGS));
 
-    // for (int i = 0; i < MAILBOX_SEGMENT_SIZE*MAX_NODES; i++) {
-    //     ((uint32_t*)comm->addr)[i] = i;
-    // }
-
-
+    for (int i = 0; i < MAILBOX_SEGMENT_SIZE*MAX_NODES; i++) {
+        ((uint32_t*)comm->addr)[i] = 1;
+    }
 
     // NCCLCHECK(WrapSisciMapLocalSegment(comm->segment,
     //                              &comm->map,
@@ -479,12 +477,19 @@ ncclResult_t ncclSisciIrecv(void* recvComm, void* data, int size, void* mhandle,
     struct ncclSisciMemHandle *memhandle = (struct ncclSisciMemHandle*)mhandle;
     struct ncclSisciRecvComm *comm = (struct ncclSisciRecvComm*)recvComm;
 
+    if (*((uint32_t*)comm->addr+memhandle->memory_id) == 0) {
+        *request = NULL;
+        return ncclSuccess;
+    }
+
     NCCLCHECK(ncclCalloc(&req, 1));
 
     req->type = SISCI_RECV;
     req->comm = recvComm;
     req->memory_id = memhandle->memory_id;
     req->id = comm->request_cnt++;
+
+    *((uint32_t*)comm->addr+req->memory_id) = 0;
 
     printf("Receiving request %d\n", req->id);
 
@@ -536,9 +541,6 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
         printf("Local flag: req->id=%d, value=%d, memory_id=%d\n", req->id, *done,
                req->memory_id);
 
-        if (*done) {
-            *((uint32_t*)comm->addr+req->memory_id) = 0;
-        }
         // *done = 0;
     }
 
