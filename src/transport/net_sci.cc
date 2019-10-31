@@ -449,10 +449,10 @@ ncclResult_t ncclSisciIsend(void* sendComm, void* data, int size, void* mhandle,
            memhandle->memory_id,
            *(uint32_t*)data);
 
-    if (*status > 0) {
-        *request = NULL;
-        return ncclSuccess;
-    }
+    /* if (*status > 0) { */
+    /*     *request = NULL; */
+    /*     return ncclSuccess; */
+    /* } */
 
     *status = 1;
 
@@ -548,6 +548,9 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
         NCCLCHECK(WrapSisciDMAQueueState(comm->dq, &state));
         uint32_t *status = (uint32_t*)comm->addr+req->memory_id;
 
+        printf("Test send: req->id=%d, memory_id=%d, status=%u\n", req->id,
+               req->memory_id, *status);
+
         if (*status == 1) {
             if (state == SCI_DMAQUEUE_IDLE || state == SCI_DMAQUEUE_DONE) {
                 // NCCLCHECK(WrapSisciWaitForDMAQueue(comm->dq, SCI_INFINITE_TIMEOUT,
@@ -556,8 +559,6 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
                 // *done = 0;
                 // printf("%d\n", *((uint32_t*)comm->addr+req->memory_id));
                 *((uint32_t*)comm->addr+req->memory_id) = 1;
-                printf("Setting remote flag: req->id=%d, memory_id=%d\n", req->id,
-                       req->memory_id);
                 if (size) *size = req->size;
 
                 *status = 2;
@@ -579,7 +580,7 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
         uint32_t *status = (uint32_t*)comm->addr+req->memory_id;
 
         // print_mailbox(comm->mailbox);
-        printf("Local flag: req->id=%d, value=%d, memory_id=%d\n", req->id, *status,
+        printf("Test recv: req->id=%d, status=%d, memory_id=%d\n", req->id, *status,
                req->memory_id);
 
         if (*status == 2) {
