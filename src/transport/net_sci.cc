@@ -194,7 +194,7 @@ static unsigned int memory_segment_id(unsigned int node_offset,
 
 void print_mailbox(volatile void* addr) {
     for (int i = 0; i < MAILBOX_SEGMENT_SIZE*MAX_NODES; i++) {
-        printf("%d ", ((uint8_t*)addr)[i]);
+        printf("%d ", ((uint32_t*)addr)[i]);
     }
     printf("\n");
 }
@@ -219,8 +219,8 @@ ncclResult_t ncclSisciListen(int dev, void* opaqueHandle, void** listenComm) {
                                NO_CALLBACK, NO_ARG, NO_FLAGS));
 
     NCCLCHECK(WrapSisciCreateSegment(comm->sd, &comm->segment, MAILBOX_SEGMENT_ID,
-                                     MAILBOX_SEGMENT_SIZE*MAX_NODES, NO_CALLBACK,
-                                     NO_ARG, NO_FLAGS));
+                                     MAILBOX_SEGMENT_SIZE*MAX_NODES*sizeof(uint32_t),
+                                     NO_CALLBACK, NO_ARG, NO_FLAGS));
 
     NCCLCHECK(WrapSisciPrepareSegment(comm->segment, comm->dev->adapter_no,
                           NO_FLAGS));
@@ -230,14 +230,14 @@ ncclResult_t ncclSisciListen(int dev, void* opaqueHandle, void** listenComm) {
 
     NCCLCHECK(WrapSisciMapLocalSegment(comm->segment,
                                        &comm->map,
-                                       MAILBOX_SEGMENT_SIZE*MAX_NODES,
-                                       MAILBOX_SEGMENT_SIZE,
+                                       0,
+                                       MAILBOX_SEGMENT_SIZE*MAX_NODES*sizeof(uint32_t),
                                        &comm->addr,
                                        NO_FLAGS));
 
-    for (int i = 0; i < MAILBOX_SEGMENT_SIZE*MAX_NODES; i++) {
-        ((uint8_t*)comm->addr)[i] = i;
-    }
+    // for (int i = 0; i < MAILBOX_SEGMENT_SIZE*MAX_NODES; i++) {
+    //     ((uint32_t*)comm->addr)[i] = i;
+    // }
 
 
 
@@ -282,11 +282,16 @@ ncclResult_t ncclSisciConnect(int dev, void* opaqueHandle, void** sendComm) {
     }
 
     NCCLCHECK(WrapSisciMapRemoteSegment(comm->mailbox, &comm->map,
-                                        MAILBOX_SEGMENT_SIZE*comm->dev->node_offset,
-                                        MAILBOX_SEGMENT_SIZE, &comm->addr, NO_FLAGS));
+                                        MAILBOX_SEGMENT_SIZE*comm->dev->node_offset*sizeof(uint32_t),
+                                        MAILBOX_SEGMENT_SIZE*sizeof(uint32_t), &comm->addr, NO_FLAGS));
+        // NCCLCHECK(WrapSisciMapRemoteSegment(comm->mailbox, &comm->map,
+        //                                     0,
+        //                                     MAILBOX_SEGMENT_SIZE*MAX_NODES,
+        //                                     &comm->addr, NO_FLAGS));
+
 
     NCCLCHECK(WrapSisciCreateDMAQueue(comm->sd, &comm->dq, comm->dev->adapter_no,
-                                      1, NO_FLAGS));
+                                      3, NO_FLAGS));
 
     *sendComm = comm;
 
@@ -308,7 +313,7 @@ ncclResult_t ncclSisciAccept(void* listenComm, void** recvComm) {
     NCCLCHECK(WrapSisciWaitForDataInterrupt(lcomm->ir, &data, &size, INFINITE_TIMEOUT,
                                             NO_FLAGS));
     rcomm->remote_node_offset = ntohs(data);
-    rcomm->addr = (uint8_t*)lcomm->addr + MAILBOX_SEGMENT_SIZE*rcomm->remote_node_offset;
+    rcomm->addr = (uint32_t*)lcomm->addr + MAILBOX_SEGMENT_SIZE*rcomm->remote_node_offset;
     rcomm->mailbox = lcomm->addr;
 
     *recvComm = rcomm;
@@ -424,7 +429,7 @@ ncclResult_t ncclSisciIsend(void* sendComm, void* data, int size, void* mhandle,
 
     NCCLCHECK(ncclCalloc(&req, 1));
 
-    *((uint8_t*)comm->addr+req->memory_id) = 0;
+    // *((uint32_t*)comm->addr+req->memory_id) = 0;
 
     if (memhandle->remote_segment == NULL) {
         while (WrapSisciConnectSegment(memhandle->sd, &memhandle->remote_segment,
@@ -493,8 +498,13 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
 
             *done = 1;
             // *done = 0;
-            printf("%d\n", *((uint8_t*)comm->addr+req->memory_id));
-            *((uint8_t*)comm->addr+req->memory_id) = 1;
+            printf("%d\n", *((uint32_t*)comm->addr+req->memory_id));
+            *((uint32_t*)comm->addr+req->memory_id) = 1;
+
+            // for (int i = 0; i < MAILBOX_SEGMENT_SIZE*MAX_NODES; i++) {
+            //     ((uint32_t*)comm->addr)[i] = i + 100;
+            // }
+
         }
     }
     else {
@@ -502,8 +512,12 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
 
         print_mailbox(comm->mailbox);
 
-        // *done = *((uint8_t*)comm->addr+req->memory_id);
-        *done = 0;
+        *done = *((uint32_t*)comm->addr+req->memory_id);
+
+        if (*done) {
+            *((uint32_t*)comm->addr+req->memory_id) = 0;
+        }
+        // *done = 0;
     }
 
     return ncclSuccess;
