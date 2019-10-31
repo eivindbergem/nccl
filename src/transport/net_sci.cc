@@ -138,6 +138,7 @@ struct ncclSisciMemHandle {
     sci_map_t map;
     volatile void *segment_addr;
     void *addr;
+    unsigned int busy;
 };
 
 struct ncclSisciRecvComm {
@@ -429,7 +430,8 @@ ncclResult_t ncclSisciRegMr(void* comm, void* data, int size, int type, void** m
     // return ncclInternalError;
 }
 ncclResult_t ncclSisciDeregMr(void* comm, void* mhandle) {
-    return ncclInternalError;
+    /* return ncclInternalError; */
+    return ncclSuccess;
 }
 
 // Asynchronous send to a peer.
@@ -439,16 +441,19 @@ ncclResult_t ncclSisciIsend(void* sendComm, void* data, int size, void* mhandle,
     struct ncclSisciMemHandle *memhandle = (struct ncclSisciMemHandle*)mhandle;
     struct ncclSisciRequest *req;
     size_t offset = (uint8_t*)data - (uint8_t*)memhandle->addr;
+    uint32_t *status = (uint32_t*)comm->addr+memhandle->memory_id;
 
-    printf("Send data: status=%d, memory_id=%d, data=%u\n",
-           *((uint32_t*)comm->addr+memhandle->memory_id),
+    printf("Send data: status=%u, memory_id=%d, data=%u\n",
+           *status,
            memhandle->memory_id,
            *(uint32_t*)data);
 
-    if (*((uint32_t*)comm->addr+memhandle->memory_id)) {
+    if (*status > 0) {
         *request = NULL;
         return ncclSuccess;
     }
+
+    *status = 1;
 
     NCCLCHECK(ncclCalloc(&req, 1));
 
@@ -539,39 +544,51 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
         struct ncclSisciSendComm *comm = (struct ncclSisciSendComm*)req->comm;
         sci_dma_queue_state_t state;
         NCCLCHECK(WrapSisciDMAQueueState(comm->dq, &state));
+        uint32_t *status = (uint32_t*)comm->addr+req->memory_id;
 
-        if (state == SCI_DMAQUEUE_IDLE || state == SCI_DMAQUEUE_DONE) {
-        // NCCLCHECK(WrapSisciWaitForDMAQueue(comm->dq, SCI_INFINITE_TIMEOUT,
-        //                                    NO_FLAGS));
+        if (*status == 1) {
+            if (state == SCI_DMAQUEUE_IDLE || state == SCI_DMAQUEUE_DONE) {
+                // NCCLCHECK(WrapSisciWaitForDMAQueue(comm->dq, SCI_INFINITE_TIMEOUT,
+                //                                    NO_FLAGS));
 
+                // *done = 0;
+                // printf("%d\n", *((uint32_t*)comm->addr+req->memory_id));
+                *((uint32_t*)comm->addr+req->memory_id) = 1;
+                printf("Setting remote flag: req->id=%d, memory_id=%d\n", req->id,
+                       req->memory_id);
+                if (size) *size = req->size;
+
+                *status = 2;
+
+                // for (int i = 0; i < MAILBOX_SEGMENT_SIZE*MAX_NODES; i++) {
+                //     ((uint32_t*)comm->addr)[i] = i + 100;
+                // }
+
+            }
+        }
+
+        if (*status == 3) {
             *done = 1;
-            // *done = 0;
-            // printf("%d\n", *((uint32_t*)comm->addr+req->memory_id));
-            *((uint32_t*)comm->addr+req->memory_id) = 1;
-            printf("Setting remote flag: req->id=%d, memory_id=%d\n", req->id,
-                   req->memory_id);
-            if (size) *size = req->size;
-
-            // for (int i = 0; i < MAILBOX_SEGMENT_SIZE*MAX_NODES; i++) {
-            //     ((uint32_t*)comm->addr)[i] = i + 100;
-            // }
-
+            *status = 0;
         }
     }
     else {
         struct ncclSisciRecvComm *comm = (struct ncclSisciRecvComm*)req->comm;
+        uint32_t *status = (uint32_t*)comm->addr+req->memory_id;
 
         // print_mailbox(comm->mailbox);
-
-        *done = *((uint32_t*)comm->addr+req->memory_id);
-
-        printf("Local flag: req->id=%d, value=%d, memory_id=%d\n", req->id, *done,
+        printf("Local flag: req->id=%d, value=%d, memory_id=%d\n", req->id, *status,
                req->memory_id);
 
-        comm->unhandled_requests = 1 - *done;
+        if (*status == 2) {
+            *done = 1;
 
-        if (*done) {
+
+            comm->unhandled_requests = 0;;
+
             memcpy(req->data, (void*)req->memhandle->segment_addr, req->size);
+
+            *status = 3;
             if (size) *size = req->size;
         }
 
@@ -583,10 +600,12 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
 
 // Close and free send/recv comm objects
 ncclResult_t ncclSisciCloseSend(void* sendComm) {
-    return ncclInternalError;
+    /* return ncclInternalError; */
+    return ncclSuccess;
 }
 ncclResult_t ncclSisciCloseRecv(void* recvComm) {
-    return ncclInternalError;
+    return ncclSuccess;
+    /* return ncclInternalError; */
 }
 ncclResult_t ncclSisciCloseListen(void* listenComm) {
     struct ncclSisciListenComm *comm = (struct ncclSisciListenComm*)listenComm;
