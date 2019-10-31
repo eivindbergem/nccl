@@ -132,10 +132,11 @@ struct ncclSisciMemHandle {
     sci_desc_t sd;
     sci_local_segment_t local_segment;
     sci_remote_segment_t remote_segment;
-    sci_map_t remote_map;
     unsigned int segment_id;
     unsigned int remote_segment_id;
     unsigned int memory_id;
+    sci_map_t map;
+    volatile void *segment_addr;
     void *addr;
 };
 
@@ -189,6 +190,10 @@ struct ncclSisciRequest {
     void *comm;
     unsigned int memory_id;
     unsigned int id;
+    void *data;
+    unsigned int size;
+    unsigned int offset;
+    struct ncclSisciMemHandle *memhandle;
 };
 
 static unsigned int memory_segment_id(unsigned int node_offset,
@@ -380,6 +385,12 @@ ncclResult_t ncclSisciRegMr(void* comm, void* data, int size, int type, void** m
                                      memhandle->segment_id, size,
                                      NO_CALLBACK, NO_ARG, NO_FLAGS));
 
+    NCCLCHECK(WrapSisciMapLocalSegment(memhandle->local_segment,
+                                       &memhandle->map,
+                                       NO_OFFSET,
+                                       size,
+                                       &memhandle->segment_addr,
+                                       NO_FLAGS));
 
     // if (type == NCCL_PTR_CUDA) {
     //     NCCLCHECK(WrapSisciAttachPhysicalMemory((sci_ioaddr_t)memhandle->addr, NULL, 0, size,
@@ -429,9 +440,10 @@ ncclResult_t ncclSisciIsend(void* sendComm, void* data, int size, void* mhandle,
     struct ncclSisciRequest *req;
     size_t offset = (uint8_t*)data - (uint8_t*)memhandle->addr;
 
-    printf("Send data: status=%d, memory_id=%d\n",
+    printf("Send data: status=%d, memory_id=%d, data=%u\n",
            *((uint32_t*)comm->addr+memhandle->memory_id),
-           memhandle->memory_id);
+           memhandle->memory_id,
+           *(uint32_t*)data);
 
     if (*((uint32_t*)comm->addr+memhandle->memory_id)) {
         *request = NULL;
@@ -449,6 +461,8 @@ ncclResult_t ncclSisciIsend(void* sendComm, void* data, int size, void* mhandle,
         }
     }
 
+    memcpy((void*)memhandle->segment_addr, data, size);
+
     if (size > 0) {
         NCCLCHECK(WrapSisciStartDmaTransfer(comm->dq, memhandle->local_segment,
                                             memhandle->remote_segment, offset, size,
@@ -459,8 +473,12 @@ ncclResult_t ncclSisciIsend(void* sendComm, void* data, int size, void* mhandle,
     req->comm = sendComm;
     req->memory_id = memhandle->memory_id;
     req->id = comm->request_cnt++;
+    req->data = data;
+    req->size = size;
+    req->memhandle = memhandle;
+    req->offset = offset;
 
-    printf("Sending request %d\n", req->id);
+    printf("Sending request %d: size=%d, offset=%d\n", req->id, size, offset);
 
     *request = req;
 
@@ -477,6 +495,7 @@ ncclResult_t ncclSisciIrecv(void* recvComm, void* data, int size, void* mhandle,
     struct ncclSisciRequest *req;
     struct ncclSisciMemHandle *memhandle = (struct ncclSisciMemHandle*)mhandle;
     struct ncclSisciRecvComm *comm = (struct ncclSisciRecvComm*)recvComm;
+    size_t offset = (uint8_t*)data - (uint8_t*)memhandle->addr;
 
     if (comm->unhandled_requests) {
         *request = NULL;
@@ -489,11 +508,15 @@ ncclResult_t ncclSisciIrecv(void* recvComm, void* data, int size, void* mhandle,
     req->comm = recvComm;
     req->memory_id = memhandle->memory_id;
     req->id = comm->request_cnt++;
+    req->data = data;
+    req->size = size;
+    req->memhandle = memhandle;
+    req->offset = offset;
 
     *((uint32_t*)comm->addr+req->memory_id) = 0;
     comm->unhandled_requests = 1;
 
-    printf("Receiving request %d\n", req->id);
+    printf("Receiving request %d: size=%d\n", req->id, size);
 
     *request = req;
 
@@ -503,7 +526,8 @@ ncclResult_t ncclSisciIrecv(void* recvComm, void* data, int size, void* mhandle,
 // Perform a flush/fence to make sure all data received with NCCL_PTR_CUDA is
 // visible to the GPU
 ncclResult_t ncclSisciFlush(void* recvComm, void* data, int size, void* mhandle) {
-    return ncclSuccess;
+    // return ncclSuccess;
+    return ncclInternalError;
 }
 
 // Test whether a request is complete. If size is not NULL, it returns the
@@ -526,6 +550,7 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
             *((uint32_t*)comm->addr+req->memory_id) = 1;
             printf("Setting remote flag: req->id=%d, memory_id=%d\n", req->id,
                    req->memory_id);
+            if (size) *size = req->size;
 
             // for (int i = 0; i < MAILBOX_SEGMENT_SIZE*MAX_NODES; i++) {
             //     ((uint32_t*)comm->addr)[i] = i + 100;
@@ -544,6 +569,11 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
                req->memory_id);
 
         comm->unhandled_requests = 1 - *done;
+
+        if (*done) {
+            memcpy(req->data, (void*)req->memhandle->segment_addr, req->size);
+            if (size) *size = req->size;
+        }
 
         // *done = 0;
     }
