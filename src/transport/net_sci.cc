@@ -584,8 +584,6 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
                req->memory_id);
 
         if (*status == 2) {
-            comm->unhandled_requests = 0;;
-
             memcpy(req->data, (void*)req->memhandle->segment_addr, req->size);
 
             *status = 3;
@@ -595,6 +593,7 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
         if (*status == 4) {
             *done = 1;
             *status = 0;
+            comm->unhandled_requests = 0;
         }
 
         // *done = 0;
