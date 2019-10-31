@@ -429,7 +429,10 @@ ncclResult_t ncclSisciIsend(void* sendComm, void* data, int size, void* mhandle,
 
     NCCLCHECK(ncclCalloc(&req, 1));
 
-    // *((uint32_t*)comm->addr+req->memory_id) = 0;
+    if (*((uint32_t*)comm->addr+req->memory_id)) {
+        *request = NULL;
+        return ncclSuccess;
+    }
 
     if (memhandle->remote_segment == NULL) {
         while (WrapSisciConnectSegment(memhandle->sd, &memhandle->remote_segment,
@@ -498,8 +501,10 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
 
             *done = 1;
             // *done = 0;
-            printf("%d\n", *((uint32_t*)comm->addr+req->memory_id));
+            // printf("%d\n", *((uint32_t*)comm->addr+req->memory_id));
             *((uint32_t*)comm->addr+req->memory_id) = 1;
+            printf("Setting remote flag: req=%p, memory_id=%d\n", req,
+                   req->memory_id);
 
             // for (int i = 0; i < MAILBOX_SEGMENT_SIZE*MAX_NODES; i++) {
             //     ((uint32_t*)comm->addr)[i] = i + 100;
@@ -513,6 +518,9 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
         // print_mailbox(comm->mailbox);
 
         *done = *((uint32_t*)comm->addr+req->memory_id);
+
+        printf("Local flag: req=%p, value=%d, memory_id=%d\n", req, *done,
+               req->memory_id);
 
         if (*done) {
             *((uint32_t*)comm->addr+req->memory_id) = 0;
