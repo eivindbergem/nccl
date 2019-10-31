@@ -362,7 +362,7 @@ ncclResult_t ncclSisciRegMr(void* comm, void* data, int size, int type, void** m
 
     struct ncclSisciMemHandle *memhandle;
     NCCLCHECK(ncclCalloc(&memhandle, 1));
-    memhandle->memory_id = size == NCCL_LL_BUFF_SIZE ? 1 : 0;
+    memhandle->memory_id = gcomm->mem_handle_cnt++;
     memhandle->segment_id = memory_segment_id(gcomm->remote_node_offset,
                                               memhandle->memory_id);
     memhandle->remote_segment_id = memory_segment_id(gcomm->dev->node_offset,
@@ -510,7 +510,7 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
     else {
         struct ncclSisciRecvComm *comm = (struct ncclSisciRecvComm*)req->comm;
 
-        print_mailbox(comm->mailbox);
+        // print_mailbox(comm->mailbox);
 
         *done = *((uint32_t*)comm->addr+req->memory_id);
 
