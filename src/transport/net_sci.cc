@@ -601,7 +601,7 @@ ncclResult_t ncclSisciIsend(void* sendComm, void* data, int size, void* mhandle,
                                           comm->remote_node_id));
     }
 
-    memcpy((void*)memhandle->segment_addr, data, size);
+    memcpy((uint8_t*)memhandle->segment_addr + offset, data, size);
 
     if (size > 0) {
         NCCLCHECK(WrapSisciStartDmaTransfer(comm->dq, memhandle->local_segment,
@@ -730,9 +730,13 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
                *req->state, *req->local_flag);
 
         if (*req->state == RECV_WAITING && *req->local_flag == COMM_FLAG_NOTIFY) {
-            if (size) *size = *req->local_size;
+            req->size = *req->local_size;
+            memcpy(req->data, (uint8_t*)req->memhandle->segment_addr + req->offset,
+                   req->size);
+
             *req->local_flag = COMM_FLAG_EMPTY;
             *req->state = COMM_READY;
+
             *req->remote_flag = COMM_FLAG_ACK;
             *done = 1;
         }
@@ -756,6 +760,8 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
 
         // *done = 0;
     }
+
+    if (size) *size = req->size;
 
     return ncclSuccess;
 }
