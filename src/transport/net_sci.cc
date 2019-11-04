@@ -226,12 +226,12 @@ struct ncclSisciRequest {
 static unsigned int memory_segment_id(unsigned int node_offset,
                                       enum ncclSisciCommType type,
                                       unsigned int i) {
-    return MEMORY_SEGMENT_PREFIX | (type << 4) | (node_offset << 1) | i;
+    return MEMORY_SEGMENT_PREFIX | (type << 8) | (node_offset << 1) | i;
 }
 
 static unsigned int get_mailbox_id(enum ncclSisciCommType type,
                                    unsigned int i) {
-    return SEGMENT_PREFIX | (type << 4) | i;
+    return SEGMENT_PREFIX | (type << 8) | i;
 }
 
 void print_mailbox(volatile void* addr) {
@@ -345,6 +345,7 @@ ncclResult_t ncclSisciConnect(int dev, void* opaqueHandle, void** sendComm) {
     comm->dev = &ncclSisciDevs[dev];
     comm->remote_node_id = handle->node_id;
     comm->remote_node_offset = (comm->remote_node_id >> 2) - 1;
+    comm->type = SISCI_SEND;
 
     sci_remote_data_interrupt_t ir;
     uint32_t data = htons(comm->dev->node_offset);
@@ -415,6 +416,7 @@ ncclResult_t ncclSisciAccept(void* listenComm, void** recvComm) {
 
     NCCLCHECK(ncclCalloc(&rcomm, 1));
     rcomm->dev = lcomm->dev;
+    rcomm->type = SISCI_RECV;
 
     NCCLCHECK(WrapSisciWaitForDataInterrupt(lcomm->ir, &data, &size, INFINITE_TIMEOUT,
                                             NO_FLAGS));
