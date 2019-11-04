@@ -510,37 +510,26 @@ ncclResult_t ncclSisciRegMr(void* comm, void* data, int size, int type, void** m
     memhandle->addr = data;
 
     NCCLCHECK(WrapSisciOpen(&memhandle->sd, NO_FLAGS));
-    // NCCLCHECK(WrapSisciCreateSegment(memhandle->sd, &memhandle->local_segment,
-    //                                  memhandle->segment_id, size,
-    //                                  NO_CALLBACK, NO_ARG, SCI_FLAG_EMPTY));
+
     NCCLCHECK(WrapSisciCreateSegment(memhandle->sd, &memhandle->local_segment,
                                      memhandle->segment_id, size,
-                                     NO_CALLBACK, NO_ARG, NO_FLAGS));
+                                     NO_CALLBACK, NO_ARG, SCI_FLAG_EMPTY));
 
-    NCCLCHECK(WrapSisciMapLocalSegment(memhandle->local_segment,
-                                       &memhandle->map,
-                                       NO_OFFSET,
-                                       size,
-                                       &memhandle->segment_addr,
-                                       NO_FLAGS));
-
-    // if (type == NCCL_PTR_CUDA) {
-    //     NCCLCHECK(WrapSisciAttachPhysicalMemory((sci_ioaddr_t)memhandle->addr, NULL, 0, size,
-    //                                             memhandle->local_segment,
-    //                                             SCI_FLAG_CUDA_BUFFER));
-    // } else {
-    //     // NCCLCHECK(WrapSisciAttachPhysicalMemory(0, memhandle->addr, 0, size,
-    //     //                                         memhandle->local_segment,
-    //     //                                         NO_FLAGS));
-    //     NCCLCHECK(WrapSisciRegisterSegmentMemory(memhandle->addr, size,
-    //                                              memhandle->local_segment,
-    //                                              NO_FLAGS));
-    // }
+    if (type == NCCL_PTR_CUDA) {
+        NCCLCHECK(WrapSisciAttachPhysicalMemory((sci_ioaddr_t)memhandle->addr, NULL, 0, size,
+                                                memhandle->local_segment,
+                                                SCI_FLAG_CUDA_BUFFER));
+    } else {
+        NCCLCHECK(WrapSisciRegisterSegmentMemory(memhandle->addr, size,
+                                                 memhandle->local_segment,
+                                                 NO_FLAGS));
+    }
 
     NCCLCHECK(WrapSisciPrepareSegment(memhandle->local_segment, gcomm->dev->adapter_no,
                                       NO_FLAGS));
     NCCLCHECK(WrapSisciSetSegmentAvailable(memhandle->local_segment, gcomm->dev->adapter_no,
                                            NO_FLAGS));
+
 
     // if (gcomm->type == SISCI_RECV_COMM) {
     //     struct ncclSisciRecvComm *rcomm = (struct ncclSisicRecvComm*)comm;
@@ -600,8 +589,6 @@ ncclResult_t ncclSisciIsend(void* sendComm, void* data, int size, void* mhandle,
                                           get_mailbox_id(SISCI_RECV, comm->dev->node_offset),
                                           comm->remote_node_id));
     }
-
-    memcpy((uint8_t*)memhandle->segment_addr + offset, data, size);
 
     if (size > 0) {
         NCCLCHECK(WrapSisciStartDmaTransfer(comm->dq, memhandle->local_segment,
@@ -731,8 +718,6 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
 
         if (*req->state == RECV_WAITING && *req->local_flag == COMM_FLAG_NOTIFY) {
             req->size = *req->local_size;
-            memcpy(req->data, (uint8_t*)req->memhandle->segment_addr + req->offset,
-                   req->size);
 
             *req->local_flag = COMM_FLAG_EMPTY;
             *req->state = COMM_READY;
