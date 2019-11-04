@@ -224,8 +224,9 @@ struct ncclSisciRequest {
 };
 
 static unsigned int memory_segment_id(unsigned int node_offset,
+                                      enum ncclSisciCommType type,
                                       unsigned int i) {
-    return MEMORY_SEGMENT_PREFIX | (node_offset << 1) | i;
+    return MEMORY_SEGMENT_PREFIX | (type << 4) | (node_offset << 1) | i;
 }
 
 static unsigned int get_mailbox_id(enum ncclSisciCommType type,
@@ -492,8 +493,10 @@ ncclResult_t ncclSisciRegMr(void* comm, void* data, int size, int type, void** m
     NCCLCHECK(ncclCalloc(&memhandle, 1));
     memhandle->memory_id = gcomm->mem_handle_cnt++;
     memhandle->segment_id = memory_segment_id(gcomm->remote_node_offset,
+                                              gcomm->type,
                                               memhandle->memory_id);
     memhandle->remote_segment_id = memory_segment_id(gcomm->dev->node_offset,
+                                                     (gcomm->type == SISCI_SEND ? SISCI_RECV : SISCI_SEND),
                                                      memhandle->memory_id);
     // memhandle->addr = devptr(data);
     memhandle->addr = data;
