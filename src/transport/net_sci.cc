@@ -333,6 +333,12 @@ static ncclResult_t ncclSisciConnectMailbox(struct ncclSisciDev *dev,
         sleep(1);
     }
 
+    NCCLCHECK(WrapSisciMapRemoteSegment(mailbox->remote_segment,
+                                        &mailbox->remote_map,
+                                        NO_OFFSET,
+                                        MAILBOX_SEGMENT_SIZE*MAX_NODES*sizeof(uint32_t),
+                                        &mailbox->remote_addr, NO_FLAGS));
+
     return ncclSuccess;
 }
 
