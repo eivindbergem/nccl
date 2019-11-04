@@ -618,10 +618,10 @@ ncclResult_t ncclSisciIsend(void* sendComm, void* data, int size, void* mhandle,
     req->memhandle = memhandle;
     req->offset = offset;
     req->local_flag = ((volatile uint32_t*)comm->mailbox->local_addr +
-                       (req->id % REQUEST_BUFFER_SIZE));
+                       (req->id % REQUEST_BUFFER_SIZE)*2);
     req->local_size = req->local_flag + 1;
     req->remote_flag = ((volatile uint32_t*)comm->mailbox->remote_addr +
-                        (req->id % REQUEST_BUFFER_SIZE));
+                        (req->id % REQUEST_BUFFER_SIZE)*2);
     req->remote_size = req->remote_flag + 1;
     req->state = &comm->state[req->id % REQUEST_BUFFER_SIZE];
     *req->state = SEND_POSTED;
@@ -673,10 +673,10 @@ ncclResult_t ncclSisciIrecv(void* recvComm, void* data, int size, void* mhandle,
     req->memhandle = memhandle;
     req->offset = offset;
     req->local_flag = ((volatile uint32_t*)comm->mailbox->local_addr +
-                       (req->id % REQUEST_BUFFER_SIZE));
+                       (req->id % REQUEST_BUFFER_SIZE)*2);
     req->local_size = req->local_flag + 1;
     req->remote_flag = ((volatile uint32_t*)comm->mailbox->remote_addr +
-                        (req->id % REQUEST_BUFFER_SIZE));
+                        (req->id % REQUEST_BUFFER_SIZE)*2);
     req->remote_size = req->remote_flag + 1;
     req->state = &comm->state[req->id % REQUEST_BUFFER_SIZE];
     *req->state = RECV_WAITING;
