@@ -79,7 +79,7 @@ ncclResult_t ncclSisciInit(ncclDebugLogger_t logFunction) {
             INFO(NCCL_INIT|NCCL_NET, "NET/SISCI : adapter %u, node id %u",
                  dev->adapter_no, dev->node_id);
 
-            dev->node_offset = (dev->node_id >> 1) - 1;
+            dev->node_offset = (dev->node_id >> 2) - 1;
 
             dev->available = 1;
         }
@@ -563,7 +563,7 @@ ncclResult_t ncclSisciIsend(void* sendComm, void* data, int size, void* mhandle,
     size_t offset = (uint8_t*)data - (uint8_t*)memhandle->addr;
     enum ncclSisciCommState state = comm->state[comm->request_cnt % REQUEST_BUFFER_SIZE];
 
-    printf("Send data: state=%u, memory_id=%d, data=%u\n",
+    printf("Try send: state=%u, memory_id=%d, data=%u\n",
            state,
            memhandle->memory_id,
            *(uint32_t*)data);
@@ -633,8 +633,14 @@ ncclResult_t ncclSisciIrecv(void* recvComm, void* data, int size, void* mhandle,
     struct ncclSisciMemHandle *memhandle = (struct ncclSisciMemHandle*)mhandle;
     struct ncclSisciRecvComm *comm = (struct ncclSisciRecvComm*)recvComm;
     size_t offset = (uint8_t*)data - (uint8_t*)memhandle->addr;
+    enum ncclSisciCommState state = comm->state[comm->request_cnt % REQUEST_BUFFER_SIZE];
 
-    if (comm->state[comm->request_cnt % REQUEST_BUFFER_SIZE] != COMM_READY) {
+    printf("Try recv: state=%u, memory_id=%d, data=%u\n",
+           state,
+           memhandle->memory_id,
+           *(uint32_t*)data);
+
+    if (state != COMM_READY) {
         *request = NULL;
         return ncclSuccess;
     }
