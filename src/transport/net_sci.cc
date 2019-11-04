@@ -704,8 +704,8 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
     if (req->type == SISCI_SEND) {
         struct ncclSisciSendComm *comm = (struct ncclSisciSendComm*)req->comm;
 
-        printf("Test send: req->id=%d, memory_id=%d, state=%u\n", req->id,
-               req->memory_id, *req->state);
+        printf("Test send: req->id=%d, state=%u, flag=%u\n", req->id,
+               *req->state, *req->local_flag);
 
         if (*req->state == SEND_POSTED) {
             sci_dma_queue_state_t state;
@@ -726,8 +726,8 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
     else {
         /* struct ncclSisciRecvComm *comm = (struct ncclSisciRecvComm*)req->comm; */
 
-        printf("Test recv: req->id=%d, memory_id=%d, state=%d\n", req->id,
-               req->memory_id, *req->state);
+        printf("Test send: req->id=%d, state=%u, flag=%u\n", req->id,
+               *req->state, *req->local_flag);
 
         if (*req->state == RECV_WAITING && *req->local_flag == COMM_FLAG_NOTIFY) {
             if (size) *size = *req->local_size;
