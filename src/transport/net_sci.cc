@@ -327,7 +327,7 @@ static ncclResult_t ncclSisciConnectMailbox(struct ncclSisciDev *dev,
                                             unsigned int segment_id,
                                             unsigned int remote_node) {
     while (WrapSisciConnectSegment(mailbox->sd, &mailbox->remote_segment, remote_node,
-                                   MAILBOX_SEGMENT_ID, dev->adapter_no,
+                                   segment_id, dev->adapter_no,
                                    NO_CALLBACK, NO_ARG, INFINITE_TIMEOUT,
                                    NO_FLAGS) != ncclSuccess) {
         sleep(1);
