@@ -726,13 +726,14 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
     else {
         /* struct ncclSisciRecvComm *comm = (struct ncclSisciRecvComm*)req->comm; */
 
-        printf("Test send: req->id=%d, state=%u, flag=%u\n", req->id,
+        printf("Test recv: req->id=%d, state=%u, flag=%u\n", req->id,
                *req->state, *req->local_flag);
 
         if (*req->state == RECV_WAITING && *req->local_flag == COMM_FLAG_NOTIFY) {
             if (size) *size = *req->local_size;
             *req->local_flag = COMM_FLAG_EMPTY;
             *req->state = COMM_READY;
+            *req->remote_flag = COMM_FLAG_ACK;
             *done = 1;
         }
 
