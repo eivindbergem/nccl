@@ -118,8 +118,7 @@ ncclResult_t ncclSisciPciPath(int dev, char** path) {
 // as data from the current GPU. Supported types should be composed with
 // NCCL_PTR_HOST and NCCL_PTR_CUDA.
 ncclResult_t ncclSisciPtrSupport(int dev, int* supportedTypes) {
-    // *supportedTypes = NCCL_PTR_HOST | NCCL_PTR_CUDA;
-    *supportedTypes = NCCL_PTR_HOST;
+    *supportedTypes = NCCL_PTR_HOST | NCCL_PTR_CUDA;
 
     return ncclSuccess;
 }
@@ -691,10 +690,12 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
     if (req->type == SISCI_SEND) {
         struct ncclSisciSendComm *comm = (struct ncclSisciSendComm*)req->comm;
 
-        printf("Test send: req->id=%d, state=%u, flag=%u\n", req->id,
-               *req->state, *req->local_flag);
+        /* printf("Test send: req->id=%d, state=%u, flag=%u\n", req->id, */
+        /*        *req->state, *req->local_flag); */
 
         if (*req->state == SEND_POSTED) {
+            printf("req->id=%d, SEND_POSTED->SEND_WAIT_ACK\n",
+                   req->id);
             sci_dma_queue_state_t state;
             NCCLCHECK(WrapSisciDMAQueueState(comm->dq, &state));
             if (state == SCI_DMAQUEUE_IDLE || state == SCI_DMAQUEUE_DONE) {
@@ -705,6 +706,9 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
         }
 
         if (*req->state == SEND_WAIT_ACK && *req->local_flag == COMM_FLAG_ACK) {
+            printf("req->id=%d, SEND_WAIT_ACK->COMM_READY\n",
+                   req->id);
+
             *req->local_flag = COMM_FLAG_EMPTY;
             *req->state = COMM_READY;
             *done = 1;
@@ -713,10 +717,13 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
     else {
         /* struct ncclSisciRecvComm *comm = (struct ncclSisciRecvComm*)req->comm; */
 
-        printf("Test recv: req->id=%d, state=%u, flag=%u\n", req->id,
-               *req->state, *req->local_flag);
+        /* printf("Test recv: req->id=%d, state=%u, flag=%u\n", req->id, */
+        /*        *req->state, *req->local_flag); */
 
         if (*req->state == RECV_WAITING && *req->local_flag == COMM_FLAG_NOTIFY) {
+            printf("req->id=%d, RECV_WAITING->COMM_READY\n",
+                   req->id);
+
             req->size = *req->local_size;
 
             *req->local_flag = COMM_FLAG_EMPTY;
