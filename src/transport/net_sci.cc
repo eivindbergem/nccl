@@ -623,7 +623,7 @@ ncclResult_t ncclSisciIsend(void* sendComm, void* data, int size, void* mhandle,
     req->remote_flag = ((volatile uint32_t*)comm->mailbox->remote_addr +
                         (req->id % REQUEST_BUFFER_SIZE));
     req->remote_size = req->remote_flag + 1;
-    req->state = &comm->state[comm->request_cnt++ % REQUEST_BUFFER_SIZE];
+    req->state = &comm->state[req->id % REQUEST_BUFFER_SIZE];
     *req->state = SEND_POSTED;
 
     printf("Sending request %d: size=%d, offset=%lu\n", req->id, size, offset);
@@ -678,7 +678,7 @@ ncclResult_t ncclSisciIrecv(void* recvComm, void* data, int size, void* mhandle,
     req->remote_flag = ((volatile uint32_t*)comm->mailbox->remote_addr +
                         (req->id % REQUEST_BUFFER_SIZE));
     req->remote_size = req->remote_flag + 1;
-    req->state = &comm->state[comm->request_cnt++ % REQUEST_BUFFER_SIZE];
+    req->state = &comm->state[req->id % REQUEST_BUFFER_SIZE];
     *req->state = RECV_WAITING;
 
     printf("Receiving request %d: size=%d\n", req->id, size);
