@@ -553,6 +553,23 @@ ncclResult_t ncclSisciDeregMr(void* comm, void* mhandle) {
     return ncclSuccess;
 }
 
+
+
+uint16_t fletcher16( uint8_t *data, int count )
+{
+   uint16_t sum1 = 0;
+   uint16_t sum2 = 0;
+   int index;
+
+   for ( index = 0; index < count; ++index )
+   {
+      sum1 = (sum1 + data[index]) % 255;
+      sum2 = (sum2 + sum1) % 255;
+   }
+
+   return (sum2 << 8) | sum1;
+}
+
 // Asynchronous send to a peer.
 // May return request == NULL if the call cannot be performed (or would block)
 ncclResult_t ncclSisciIsend(void* sendComm, void* data, int size, void* mhandle, void** request) {
@@ -612,7 +629,9 @@ ncclResult_t ncclSisciIsend(void* sendComm, void* data, int size, void* mhandle,
     req->state = &comm->state[req->id % REQUEST_BUFFER_SIZE];
     *req->state = SEND_POSTED;
 
-    printf("Sending request %d: size=%d, offset=%lu\n", req->id, size, offset);
+    printf("Sending request %d: size=%d, offset=%lu, local_segment=%x, remote_segment=%x, checksum=%04x\n",
+           req->id, size, offset, memhandle->segment_id,
+           memhandle->remote_segment_id, fletcher16((uint8_t*)data, size));
 
     *request = req;
 
@@ -667,7 +686,8 @@ ncclResult_t ncclSisciIrecv(void* recvComm, void* data, int size, void* mhandle,
     req->state = &comm->state[req->id % REQUEST_BUFFER_SIZE];
     *req->state = RECV_WAITING;
 
-    printf("Receiving request %d: size=%d\n", req->id, size);
+    printf("Receiving request %d: size=%d, offset=%lu, segment=%x\n",
+           req->id, size, offset, memhandle->segment_id);
 
     *request = req;
 
@@ -694,11 +714,12 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
         /*        *req->state, *req->local_flag); */
 
         if (*req->state == SEND_POSTED) {
-            printf("req->id=%d, SEND_POSTED->SEND_WAIT_ACK\n",
-                   req->id);
             sci_dma_queue_state_t state;
             NCCLCHECK(WrapSisciDMAQueueState(comm->dq, &state));
             if (state == SCI_DMAQUEUE_IDLE || state == SCI_DMAQUEUE_DONE) {
+                printf("req->id=%d, SEND_POSTED->SEND_WAIT_ACK\n",
+                       req->id);
+
                 *req->remote_size = req->size;
                 *req->remote_flag = COMM_FLAG_NOTIFY;
                 *req->state = SEND_WAIT_ACK;
@@ -721,9 +742,6 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
         /*        *req->state, *req->local_flag); */
 
         if (*req->state == RECV_WAITING && *req->local_flag == COMM_FLAG_NOTIFY) {
-            printf("req->id=%d, RECV_WAITING->COMM_READY\n",
-                   req->id);
-
             req->size = *req->local_size;
 
             *req->local_flag = COMM_FLAG_EMPTY;
@@ -731,6 +749,47 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
 
             *req->remote_flag = COMM_FLAG_ACK;
             *done = 1;
+
+            printf("req->id=%d, RECV_WAITING->COMM_READY\n",
+                   req->id);
+
+            printf("Received data: size=%u, offset=%u, checksum=%04x\n",
+                   req->size, req->offset, fletcher16((uint8_t*)req->data, req->size));
+
+            for (int i = 0; i < 32768*4; i++) {
+                uint32_t *value = ((uint32_t*)req->memhandle->addr + i);
+                if (*value != 0) {
+                    printf("%d", i);
+                }
+                /* if (i % 32 == 0) { */
+                /*     printf("\n"); */
+                /* } */
+                /* printf("%u ",  */
+            }
+            printf("\n");
+
+            /* for (int i = 0; i < 16; i++) { */
+            /*     printf("%u ", *((uint32_t*)req->memhandle->addr + i)); */
+            /* } */
+            /* printf("\n"); */
+
+            /* for (int i = 0; i < 16; i++) { */
+            /*     printf("%u ", *((uint32_t*)req->memhandle->addr + req->offset + i)); */
+            /* } */
+            /* printf("\n"); */
+
+            /* for (int i = 0; i < 16; i++) { */
+            /*     printf("%u ", *((uint32_t*)req->memhandle->addr + req->size + i)); */
+            /* } */
+            /* printf("\n"); */
+
+            /* for (int i = 0; i < 16; i++) { */
+            /*     printf("%u ", *((uint32_t*)req->memhandle->addr - req->size + i)); */
+            /* } */
+            /* printf("\n"); */
+
+
+
         }
 
         /* // print_mailbox(comm->mailbox); */
