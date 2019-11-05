@@ -756,17 +756,17 @@ ncclResult_t ncclSisciTest(void* request, int* done, int* size) {
             printf("Received data: size=%u, offset=%u, checksum=%04x\n",
                    req->size, req->offset, fletcher16((uint8_t*)req->data, req->size));
 
-            for (int i = 0; i < 32768*4; i++) {
-                uint32_t *value = ((uint32_t*)req->memhandle->addr + i);
-                if (*value != 0) {
-                    printf("%d", i);
-                }
-                /* if (i % 32 == 0) { */
-                /*     printf("\n"); */
-                /* } */
-                /* printf("%u ",  */
-            }
-            printf("\n");
+            // for (int i = 0; i < req->memhandle->size; i++) {
+            //     uint32_t *value = ((uint32_t*)req->memhandle->addr + i);
+            //     if (*value != 0) {
+            //         printf("%d ", i);
+            //     }
+            //     /* if (i % 32 == 0) { */
+            //     /*     printf("\n"); */
+            //     /* } */
+            //     /* printf("%u ",  */
+            // }
+            // printf("\n");
 
             /* for (int i = 0; i < 16; i++) { */
             /*     printf("%u ", *((uint32_t*)req->memhandle->addr + i)); */
